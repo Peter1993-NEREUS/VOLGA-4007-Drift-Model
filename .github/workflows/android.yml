@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Validate v1.4.1 JavaScript and UI wiring
+      - name: Validate v1.4.2 JavaScript and UI wiring
         run: |
           node --check app/src/main/assets/v14.js
           node --check app/src/main/assets/v141.js
@@ -44,10 +44,10 @@ jobs:
           missing=sorted(refs-ids)
           if missing:
               raise SystemExit('Missing HTML ids referenced by JS: '+', '.join(missing))
-          for required in ['shipPair','Android.savePdf','Developed by Peter Mirronov','mirron_petr@mail.ru']:
+          for required in ['shipPair','Android.printPdf','renderPdfRouteMap','reportMapPrint','Developed by Peter Mirronov','mirron_petr@mail.ru','v1.4.2']:
               if required not in enh:
-                  raise SystemExit('Missing v1.4.1 feature marker: '+required)
-          print(f'UI validation OK: {len(ids)} ids, {len(refs)} base JS refs; v1.4.1 enhancements present')
+                  raise SystemExit('Missing v1.4.2 feature marker: '+required)
+          print(f'UI validation OK: {len(ids)} ids, {len(refs)} base JS refs; v1.4.2 enhancements present')
           PY
 
       - name: Install Copernicus and NetCDF tools
@@ -92,12 +92,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.4.1-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.4.2-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Marine-Drift-Model-by-NEREUS-v1.4.1-APK
-          path: Marine-Drift-Model-by-NEREUS-v1.4.1-debug.apk
+          name: Marine-Drift-Model-by-NEREUS-v1.4.2-APK
+          path: Marine-Drift-Model-by-NEREUS-v1.4.2-debug.apk
           if-no-files-found: error
           retention-days: 30
