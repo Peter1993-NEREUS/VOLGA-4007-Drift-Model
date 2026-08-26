@@ -29,6 +29,22 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Validate v1.4 JavaScript and UI wiring
+        run: |
+          node --check app/src/main/assets/v14.js
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html=Path('app/src/main/assets/index.html').read_text(encoding='utf-8')
+          js=Path('app/src/main/assets/v14.js').read_text(encoding='utf-8')
+          ids=set(re.findall(r'id="([^"]+)"',html))
+          refs=set(re.findall(r"\$\('([^']+)'\)",js))
+          missing=sorted(refs-ids)
+          if missing:
+              raise SystemExit('Missing HTML ids referenced by JS: '+', '.join(missing))
+          print(f'UI validation OK: {len(ids)} ids, {len(refs)} JS refs')
+          PY
+
       - name: Install Copernicus and NetCDF tools
         run: python -m pip install --upgrade pip copernicusmarine netCDF4 numpy
 
