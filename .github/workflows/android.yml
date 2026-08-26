@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Validate v1.6.1 JavaScript, Python and feature wiring
+      - name: Validate v1.6.3 JavaScript, Python and feature wiring
         run: |
           node --check app/src/main/assets/v14.js
           node --check app/src/main/assets/v141.js
@@ -38,13 +38,15 @@ jobs:
           node --check app/src/main/assets/v152.js
           node --check app/src/main/assets/v160.js
           node --check app/src/main/assets/v161.js
+          node --check app/src/main/assets/v162.js
+          node --check app/src/main/assets/v163.js
           python -m py_compile tools/lookup_vessel.py tools/build_driftpack.py tools/build_dynamic_pack.py
           python - <<'PY'
           import re
           from pathlib import Path
           html=Path('app/src/main/assets/index.html').read_text(encoding='utf-8')
           base=Path('app/src/main/assets/v14.js').read_text(encoding='utf-8')
-          names=['v141.js','v150.js','v151.js','v152.js','v160.js','v161.js']
+          names=['v141.js','v150.js','v151.js','v152.js','v160.js','v161.js','v162.js','v163.js']
           enh='\n'.join(Path('app/src/main/assets',x).read_text(encoding='utf-8') for x in names)
           java=Path('app/src/main/java/com/nereus/volgadrift/MainActivity.java').read_text(encoding='utf-8')
           manifest=Path('app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
@@ -52,13 +54,13 @@ jobs:
           refs=set(re.findall(r"\$\('([^']+)'\)",base))
           missing=sorted(refs-ids)
           if missing: raise SystemExit('Missing base HTML ids: '+', '.join(missing))
-          required=['renderPdfRouteMap','Developed by Peter Mirronov','Pre-flight check','COPY DRIFT SUMMARY','Recent calculations','CUSTOM VESSEL','SAVE AS NEW','RENAME','vessel-lookup.yml','validIMO','Wind data','LOAD / RELOAD WIND','Weather at point','POINT WEATHER FORECAST','weatherPrintMode','CMEMS + wind data ready','v1.6.1']
+          required=['renderPdfRouteMap','Developed by Peter Mirronov','Pre-flight check','COPY DRIFT SUMMARY','Recent calculations','CUSTOM VESSEL','SAVE AS NEW','RENAME','vessel-lookup.yml','validIMO','Wind data','LOAD / RELOAD WIND','Weather at point','POINT WEATHER FORECAST','weatherPrintMode','CMEMS + wind data ready','CUSTOM •','Vessel data lookup','Public data','Cross-check','fields','v1.6.3']
           for marker in required:
-            if marker not in enh and marker not in java: raise SystemExit('Missing v1.6.1 marker: '+marker)
+            if marker not in enh and marker not in java: raise SystemExit('Missing v1.6.3 marker: '+marker)
           if 'POST_NOTIFICATIONS' not in manifest: raise SystemExit('Notification permission missing')
           for loader in names:
             if loader not in java: raise SystemExit('Loader missing: '+loader)
-          print(f'v1.6.1 validation OK: {len(ids)} base IDs, {len(refs)} base JS refs')
+          print(f'v1.6.3 validation OK: {len(ids)} base IDs, {len(refs)} base JS refs')
           PY
 
       - name: Install Copernicus and NetCDF tools
@@ -103,12 +105,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.6.1-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.6.3-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Marine-Drift-Model-by-NEREUS-v1.6.1-APK
-          path: Marine-Drift-Model-by-NEREUS-v1.6.1-debug.apk
+          name: Marine-Drift-Model-by-NEREUS-v1.6.3-APK
+          path: Marine-Drift-Model-by-NEREUS-v1.6.3-debug.apk
           if-no-files-found: error
           retention-days: 30
