@@ -6,6 +6,8 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.JavascriptInterface;
 import android.view.Window;
 import android.graphics.Color;
@@ -16,6 +18,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.util.Base64;
 import java.io.OutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
@@ -23,6 +26,7 @@ public class MainActivity extends Activity {
     private byte[] pendingBytes;
     private String pendingMime="application/octet-stream";
     private static final int CREATE_FILE=701;
+    private static final String ASSET_HOST="appassets.androidplatform.net";
 
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
@@ -32,11 +36,38 @@ public class MainActivity extends Activity {
         web=new WebView(this); setContentView(web);
         WebSettings s=web.getSettings();
         s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(true); s.setAllowContentAccess(true);
-        s.setAllowFileAccessFromFileURLs(true); s.setAllowUniversalAccessFromFileURLs(true);
         s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setLoadWithOverviewMode(true); s.setUseWideViewPort(true);
-        web.setWebViewClient(new WebViewClient()); web.setWebChromeClient(new WebChromeClient());
+        web.setWebChromeClient(new WebChromeClient());
+        web.setWebViewClient(new WebViewClient(){
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request){
+                Uri uri=request.getUrl();
+                if("https".equalsIgnoreCase(uri.getScheme()) && ASSET_HOST.equalsIgnoreCase(uri.getHost())){
+                    String path=uri.getPath();
+                    if(path!=null && path.startsWith("/assets/")){
+                        String rel=path.substring("/assets/".length());
+                        try{
+                            InputStream is=getAssets().open(rel);
+                            return new WebResourceResponse(mime(rel), null, is);
+                        }catch(Exception ignored){}
+                    }
+                }
+                return super.shouldInterceptRequest(view,request);
+            }
+        });
         web.addJavascriptInterface(new Bridge(), "Android");
-        web.loadUrl("file:///android_asset/index.html");
+        web.loadUrl("https://"+ASSET_HOST+"/assets/index.html");
+    }
+
+    private String mime(String p){
+        String q=p.toLowerCase();
+        if(q.endsWith(".html")) return "text/html";
+        if(q.endsWith(".js")) return "application/javascript";
+        if(q.endsWith(".css")) return "text/css";
+        if(q.endsWith(".json")) return "application/json";
+        if(q.endsWith(".png")) return "image/png";
+        if(q.endsWith(".svg")) return "image/svg+xml";
+        if(q.endsWith(".bin")) return "application/octet-stream";
+        return "application/octet-stream";
     }
 
     public class Bridge {
