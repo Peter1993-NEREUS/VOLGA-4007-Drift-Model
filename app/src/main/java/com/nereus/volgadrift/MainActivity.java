@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
         WebSettings s=web.getSettings();
         s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(true); s.setAllowContentAccess(true);
         s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setLoadWithOverviewMode(true); s.setUseWideViewPort(true);
-        s.setUserAgentString(s.getUserAgentString()+" MarineDrift-NEREUS/1.6.0 (+https://github.com/Peter1993-NEREUS/VOLGA-4007-Drift-Model)");
+        s.setUserAgentString(s.getUserAgentString()+" MarineDrift-NEREUS/1.6.1 (+https://github.com/Peter1993-NEREUS/VOLGA-4007-Drift-Model)");
         web.setWebChromeClient(new WebChromeClient());
         web.setWebViewClient(new WebViewClient(){
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request){
@@ -85,7 +85,7 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view,url);
                 String js="(function(){"+
                     "function load(id,src,next){var e=document.getElementById(id);if(e){if(next)next();return;}var s=document.createElement('script');s.id=id;s.src=src;if(next)s.onload=next;document.body.appendChild(s);}"+
-                    "load('v141loader','v141.js',function(){load('v150loader','v150.js',function(){load('v151loader','v151.js',function(){load('v152loader','v152.js',function(){load('v160loader','v160.js');});});});});"+
+                    "load('v141loader','v141.js',function(){load('v150loader','v150.js',function(){load('v151loader','v151.js',function(){load('v152loader','v152.js',function(){load('v160loader','v160.js',function(){load('v161loader','v161.js');});});});});});"+
                     "})();";
                 view.evaluateJavascript(js,null);
             }
