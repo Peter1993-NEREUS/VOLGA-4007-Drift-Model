@@ -3,8 +3,6 @@ package com.nereus.volgadrift;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.Build;
-import android.os.CancellationSignal;
-import android.os.ParcelFileDescriptor;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -16,10 +14,12 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.graphics.Color;
 import android.graphics.Insets;
+import android.graphics.Picture;
+import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.print.PrintAttributes;
-import android.print.PrintDocumentAdapter;
-import android.print.PrintDocumentInfo;
-import android.print.PageRange;
+import android.print.pdf.PrintedPdfDocument;
+import android.graphics.pdf.PdfDocument;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ClipboardManager;
@@ -44,6 +44,7 @@ public class MainActivity extends Activity {
         Window w=getWindow();
         w.setStatusBarColor(Color.rgb(6,31,51));
         w.setNavigationBarColor(Color.rgb(6,31,51));
+        WebView.enableSlowWholeDocumentDraw();
         web=new WebView(this);
         setContentView(web);
         applySystemBarInsets();
@@ -78,18 +79,15 @@ public class MainActivity extends Activity {
     }
 
     private void applySystemBarInsets(){
-        if(Build.VERSION.SDK_INT>=30){
-            web.setOnApplyWindowInsetsListener((v,insets)->{
+        web.setOnApplyWindowInsetsListener((v,insets)->{
+            if(Build.VERSION.SDK_INT>=30){
                 Insets bars=insets.getInsets(WindowInsets.Type.systemBars());
                 v.setPadding(bars.left,bars.top,bars.right,bars.bottom);
-                return insets;
-            });
-        } else {
-            web.setOnApplyWindowInsetsListener((v,insets)->{
+            } else {
                 v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
-                return insets;
-            });
-        }
+            }
+            return insets;
+        });
         web.requestApplyInsets();
     }
 
@@ -106,9 +104,7 @@ public class MainActivity extends Activity {
     }
 
     public class Bridge {
-        @JavascriptInterface public void printPdf() {
-            savePdf("Marine_Drift_Report_by_NEREUS.pdf");
-        }
+        @JavascriptInterface public void printPdf() { savePdf("Marine_Drift_Report_by_NEREUS.pdf"); }
         @JavascriptInterface public void savePdf(String filename) {
             runOnUiThread(() -> launchPdfCreate(filename==null||filename.trim().isEmpty()?"Marine_Drift_Report_by_NEREUS.pdf":filename));
         }
@@ -146,31 +142,48 @@ public class MainActivity extends Activity {
     }
 
     private void writePdf(Uri uri){
-        runOnUiThread(() -> {
-            final PrintDocumentAdapter adapter=web.createPrintDocumentAdapter("Marine Drift Model by NEREUS");
-            final PrintAttributes attrs=new PrintAttributes.Builder()
+        runOnUiThread(() -> web.evaluateJavascript("document.body.classList.add('pdfExport');window.scrollTo(0,0);",v -> web.postDelayed(() -> renderPdf(uri),450)));
+    }
+
+    @SuppressWarnings("deprecation")
+    private void renderPdf(Uri uri){
+        PrintedPdfDocument doc=null;
+        try{
+            Picture picture=web.capturePicture();
+            if(picture==null || picture.getWidth()<=0 || picture.getHeight()<=0) throw new IllegalStateException("Empty report capture");
+            PrintAttributes attrs=new PrintAttributes.Builder()
                     .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                     .setResolution(new PrintAttributes.Resolution("pdf","PDF",300,300))
                     .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
                     .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                     .build();
-            adapter.onStart();
-            adapter.onLayout(attrs,attrs,new CancellationSignal(),new PrintDocumentAdapter.LayoutResultCallback(){
-                @Override public void onLayoutFinished(PrintDocumentInfo info,boolean changed){
-                    try{
-                        final ParcelFileDescriptor pfd=getContentResolver().openFileDescriptor(uri,"w");
-                        if(pfd==null){adapter.onFinish();return;}
-                        adapter.onWrite(new PageRange[]{PageRange.ALL_PAGES},pfd,new CancellationSignal(),new PrintDocumentAdapter.WriteResultCallback(){
-                            @Override public void onWriteFinished(PageRange[] pages){try{pfd.close();}catch(Exception ignored){}adapter.onFinish();}
-                            @Override public void onWriteFailed(CharSequence error){try{pfd.close();}catch(Exception ignored){}adapter.onFinish();}
-                            @Override public void onWriteCancelled(){try{pfd.close();}catch(Exception ignored){}adapter.onFinish();}
-                        });
-                    }catch(Exception e){adapter.onFinish();}
-                }
-                @Override public void onLayoutFailed(CharSequence error){adapter.onFinish();}
-                @Override public void onLayoutCancelled(){adapter.onFinish();}
-            },new Bundle());
-        });
+            doc=new PrintedPdfDocument(this,attrs);
+            Rect cr=doc.getPageContentRect();
+            float scale=(float)cr.width()/(float)picture.getWidth();
+            float slice=(float)cr.height()/scale;
+            int pages=Math.max(1,(int)Math.ceil(picture.getHeight()/slice));
+            for(int p=0;p<pages;p++){
+                PdfDocument.Page page=doc.startPage(p);
+                Canvas canvas=page.getCanvas();
+                canvas.drawColor(Color.WHITE);
+                canvas.save();
+                canvas.translate(cr.left,cr.top);
+                canvas.scale(scale,scale);
+                canvas.translate(0,-p*slice);
+                picture.draw(canvas);
+                canvas.restore();
+                doc.finishPage(page);
+            }
+            try(OutputStream os=getContentResolver().openOutputStream(uri,"w")){
+                if(os==null) throw new IllegalStateException("Cannot open PDF destination");
+                doc.writeTo(os);os.flush();
+            }
+            web.evaluateJavascript("document.body.classList.remove('pdfExport');if(typeof toast==='function')toast('PDF saved');",null);
+        }catch(Exception e){
+            web.evaluateJavascript("document.body.classList.remove('pdfExport');if(typeof toast==='function')toast('PDF save failed',true);",null);
+        }finally{
+            if(doc!=null)try{doc.close();}catch(Exception ignored){}
+        }
     }
 
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
