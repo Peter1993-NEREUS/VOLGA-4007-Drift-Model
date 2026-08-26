@@ -12,6 +12,8 @@ import android.webkit.WebResourceResponse;
 import android.webkit.JavascriptInterface;
 import android.view.Window;
 import android.view.WindowInsets;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.Picture;
@@ -32,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
     private WebView web;
+    private FrameLayout root;
     private byte[] pendingBytes;
     private String pendingMime="application/octet-stream";
     private static final int CREATE_FILE=701;
@@ -45,14 +48,19 @@ public class MainActivity extends Activity {
         w.setStatusBarColor(Color.rgb(6,31,51));
         w.setNavigationBarColor(Color.rgb(6,31,51));
         WebView.enableSlowWholeDocumentDraw();
+
+        root=new FrameLayout(this);
+        root.setBackgroundColor(Color.rgb(6,31,51));
         web=new WebView(this);
-        setContentView(web);
+        FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT);
+        root.addView(web,lp);
+        setContentView(root);
         applySystemBarInsets();
 
         WebSettings s=web.getSettings();
         s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(true); s.setAllowContentAccess(true);
         s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setLoadWithOverviewMode(true); s.setUseWideViewPort(true);
-        s.setUserAgentString(s.getUserAgentString()+" MarineDrift-NEREUS/1.4.1 (+https://github.com/Peter1993-NEREUS/VOLGA-4007-Drift-Model)");
+        s.setUserAgentString(s.getUserAgentString()+" MarineDrift-NEREUS/1.4.2 (+https://github.com/Peter1993-NEREUS/VOLGA-4007-Drift-Model)");
         web.setWebChromeClient(new WebChromeClient());
         web.setWebViewClient(new WebViewClient(){
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request){
@@ -79,16 +87,28 @@ public class MainActivity extends Activity {
     }
 
     private void applySystemBarInsets(){
-        web.setOnApplyWindowInsetsListener((v,insets)->{
+        root.setOnApplyWindowInsetsListener((v,insets)->{
+            int left,top,right,bottom;
             if(Build.VERSION.SDK_INT>=30){
-                Insets bars=insets.getInsets(WindowInsets.Type.systemBars());
-                v.setPadding(bars.left,bars.top,bars.right,bars.bottom);
+                Insets bars=insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                left=bars.left; top=bars.top; right=bars.right; bottom=bars.bottom;
             } else {
-                v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
+                left=insets.getSystemWindowInsetLeft();
+                top=insets.getSystemWindowInsetTop();
+                right=insets.getSystemWindowInsetRight();
+                bottom=insets.getSystemWindowInsetBottom();
+            }
+            FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)web.getLayoutParams();
+            if(lp.leftMargin!=left || lp.topMargin!=top || lp.rightMargin!=right || lp.bottomMargin!=bottom){
+                lp.leftMargin=left;
+                lp.topMargin=top;
+                lp.rightMargin=right;
+                lp.bottomMargin=bottom;
+                web.setLayoutParams(lp);
             }
             return insets;
         });
-        web.requestApplyInsets();
+        root.requestApplyInsets();
     }
 
     private String mime(String p){
