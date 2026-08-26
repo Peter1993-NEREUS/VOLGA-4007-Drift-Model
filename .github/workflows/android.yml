@@ -1,0 +1,82 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.CMEMS_USERNAME }}
+      COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.CMEMS_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Copernicus and NetCDF tools
+        run: python -m pip install --upgrade pip copernicusmarine netCDF4 numpy
+
+      - name: Check CMEMS secrets
+        run: |
+          test -n "$COPERNICUSMARINE_SERVICE_USERNAME" || (echo "Missing CMEMS_USERNAME secret" && exit 2)
+          test -n "$COPERNICUSMARINE_SERVICE_PASSWORD" || (echo "Missing CMEMS_PASSWORD secret" && exit 2)
+
+      - name: Download regional Black Sea currents
+        run: |
+          mkdir -p data
+          copernicusmarine subset -i cmems_mod_blk_phy-cur_anfc_2.5km_PT1H-m \
+            -v uo -v vo -x 35.0 -X 39.5 -y 42.5 -Y 45.5 -z 0 -Z 5 \
+            -t 2026-08-19T07:00:00 -T 2026-08-27T23:00:00 \
+            -f data/regional.nc --overwrite
+
+      - name: Download Black Sea Stokes drift
+        run: |
+          copernicusmarine subset -i cmems_mod_blk_wav_anfc_2.5km_PT1H-i \
+            -v VSDX -v VSDY -x 35.0 -X 39.5 -y 42.5 -Y 45.5 \
+            -t 2026-08-19T07:00:00 -T 2026-09-01T07:00:00 \
+            -f data/stokes.nc --overwrite
+
+      - name: Download global hourly currents
+        run: |
+          copernicusmarine subset -i cmems_mod_glo_phy_anfc_merged-uv_PT1H-i \
+            -v uo -v vo -x 35.0 -X 39.5 -y 42.5 -Y 45.5 \
+            -t 2026-08-19T07:00:00 -T 2026-09-01T07:00:00 \
+            -f data/global.nc --overwrite
+
+      - name: Build offline drift pack
+        run: python tools/build_driftpack.py --regional data/regional.nc --stokes data/stokes.nc --global-uv data/global.nc --assets app/src/main/assets
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk VOLGA4007-Drift-FullLoad-6000MT-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOLGA4007-Drift-FullLoad-6000MT-APK
+          path: VOLGA4007-Drift-FullLoad-6000MT-debug.apk
+          if-no-files-found: error
+          retention-days: 30
