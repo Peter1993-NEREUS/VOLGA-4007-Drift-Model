@@ -60,12 +60,30 @@
       setTimeout(()=>{try{Android.savePdf(`Marine_Drift_${v}_${stamp}.pdf`)}catch(e){toast('PDF save is not supported by this build',true)}},180);
     };
   }
+  function installDeveloperContact(){
+    if(!$x('developerContact')){
+      const style=document.createElement('style');
+      style.textContent=`.developerContact{max-width:1600px;margin:2px auto 14px;padding:10px 14px;text-align:center;color:#607581;font-size:10px;line-height:1.5}.developerContact b{color:#0b4266}.developerContact .mail{font-weight:650;color:#315f73}.reportDeveloper{margin-top:3mm;padding-top:2.5mm;border-top:1px solid #dbe6eb;text-align:right;color:#607581;font-size:7.5px;line-height:1.45}@media print{.developerContact{display:none!important}}`;
+      document.head.appendChild(style);
+      const f=document.createElement('div');
+      f.id='developerContact';f.className='developerContact';
+      f.innerHTML='<b>Developed by Peter Mirronov</b><br><span class="mail">mirron_petr@mail.ru</span>';
+      const report=document.getElementById('report');
+      document.body.insertBefore(f,report||null);
+    }
+    const foot=document.querySelector('.reportFoot');
+    if(foot&&!foot.querySelector('.reportDeveloper')){
+      const d=document.createElement('div');d.className='reportDeveloper';
+      d.innerHTML='<b>Marine Drift Model by NEREUS</b><br>Developed by Peter Mirronov • mirron_petr@mail.ru';
+      foot.appendChild(d);
+    }
+  }
   function installVersion(){
     const sub=document.querySelector('header .sub');
     if(sub&&!sub.textContent.includes('v1.4.1'))sub.insertAdjacentHTML('beforeend',' • v1.4.1');
   }
   function boot(){
-    try{hookStart();installCoordinatePanel();installPdfSave();installVersion();syncDisplays();}
+    try{hookStart();installCoordinatePanel();installPdfSave();installDeveloperContact();installVersion();syncDisplays();}
     catch(e){console.error('v1.4.1 enhancement',e)}
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,0));else setTimeout(boot,0);
