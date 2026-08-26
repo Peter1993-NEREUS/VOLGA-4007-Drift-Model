@@ -12,7 +12,6 @@ def as_float_nan(x):
     if np.ma.isMaskedArray(x):
         return np.asarray(np.ma.filled(x, np.nan), dtype=np.float32)
     a=np.asarray(x,dtype=np.float32)
-    # Protect against common NetCDF fill values that survived decoding.
     a[np.abs(a)>100.0]=np.nan
     return a
 
@@ -51,21 +50,32 @@ def read_stokes(path):
         times=num2date(tvar[:],tvar.units,getattr(tvar,'calendar','standard'),only_use_cftime_datetimes=False)
     return times,lat,lon,u,v
 
-def iso(dt):
-    try: return dt.isoformat().replace('+00:00','Z')
-    except Exception: return str(dt)
+def iso_utc(value):
+    """Serialize CMEMS timestamps as explicit UTC so Android never treats them as local time."""
+    try:
+        s=value.isoformat()
+    except Exception:
+        s=str(value)
+    if s.endswith('Z'):
+        return s
+    if s.endswith('+00:00'):
+        return s[:-6]+'Z'
+    # num2date commonly returns a timezone-naive datetime even though CMEMS time is UTC.
+    if 'T' in s and '+' not in s[10:] and not s.endswith('Z'):
+        return s+'Z'
+    return s
 
 def pack_uv(path,out,depth_mean=False,step=1):
     times,lat,lon,u,v=read_uv(path,depth_mean)
     lat=lat[::step]; lon=lon[::step]; u=u[:,::step,::step]; v=v[:,::step,::step]
     q16(np.stack([u,v],axis=-1)).tofile(out)
-    return dict(startUtc=iso(times[0]),endUtc=iso(times[-1]),nt=len(times),ny=len(lat),nx=len(lon),lat0=float(lat[0]),latStep=float(np.median(np.diff(lat))),lon0=float(lon[0]),lonStep=float(np.median(np.diff(lon))))
+    return dict(startUtc=iso_utc(times[0]),endUtc=iso_utc(times[-1]),nt=len(times),ny=len(lat),nx=len(lon),lat0=float(lat[0]),latStep=float(np.median(np.diff(lat))),lon0=float(lon[0]),lonStep=float(np.median(np.diff(lon))))
 
 def pack_stokes(path,out,step=1):
     times,lat,lon,u,v=read_stokes(path)
     lat=lat[::step]; lon=lon[::step]; u=u[:,::step,::step]; v=v[:,::step,::step]
     q16(np.stack([u,v],axis=-1)).tofile(out)
-    return dict(startUtc=iso(times[0]),endUtc=iso(times[-1]),nt=len(times),ny=len(lat),nx=len(lon),lat0=float(lat[0]),latStep=float(np.median(np.diff(lat))),lon0=float(lon[0]),lonStep=float(np.median(np.diff(lon))))
+    return dict(startUtc=iso_utc(times[0]),endUtc=iso_utc(times[-1]),nt=len(times),ny=len(lat),nx=len(lon),lat0=float(lat[0]),latStep=float(np.median(np.diff(lat))),lon0=float(lon[0]),lonStep=float(np.median(np.diff(lon))))
 
 def main():
     ap=argparse.ArgumentParser()
@@ -74,7 +84,8 @@ def main():
     reg=pack_uv(a.regional,A/'regional.bin',depth_mean=True,step=2)
     stk=pack_stokes(a.stokes,A/'stokes.bin',step=2)
     glo=pack_uv(a.global_uv,A/'global.bin',depth_mean=False,step=1)
-    meta={'format':'VOLGA_DRIFTPACK_V1_1_2_FULLLOAD_MOBILE','scale':SCALE,'missing':MISSING,'startUtc':'2026-08-19T07:00:00Z','endUtc':'2026-09-01T07:00:00Z','localOffsetHours':3,'fixed':{'vessel':'VOLGA-4007','imo':'8728816','cargo':'6,000 MT COPPER','draftM':4.68,'leeway':0.003,'integrationMinutes':15,'blendHours':24,'loadCondition':'FULL LOAD / SUMMER DRAFT','currentVerticalMean':'CMEMS available levels 0.50-4.52 m','leewayNote':'Fixed engineering assumption for full-load v1.1.2; k=0.003 (0.3% of wind speed downwind)'},'regional':reg,'stokes':stk,'global':glo,'domain':{'minLat':42.5,'maxLat':45.5,'minLon':35.0,'maxLon':39.5}}
+    meta={'format':'VOLGA_DRIFTPACK_V1_1_3_FULLLOAD_MOBILE','scale':SCALE,'missing':MISSING,'startUtc':'2026-08-19T07:00:00Z','endUtc':'2026-09-01T07:00:00Z','localOffsetHours':3,'fixed':{'vessel':'VOLGA-4007','imo':'8728816','cargo':'6,000 MT COPPER','draftM':4.68,'leeway':0.003,'integrationMinutes':15,'blendHours':24,'loadCondition':'FULL LOAD / SUMMER DRAFT','currentVerticalMean':'CMEMS available levels 0.50-4.52 m','leewayNote':'Fixed engineering assumption for full-load v1.1.3; k=0.003 (0.3% of wind speed downwind)'},'regional':reg,'stokes':stk,'global':glo,'domain':{'minLat':42.5,'maxLat':45.5,'minLon':35.0,'maxLon':39.5}}
     (A/'meta.json').write_text(json.dumps(meta,indent=2),encoding='utf-8')
+    print('UTC ranges:',reg['startUtc'],reg['endUtc'],stk['startUtc'],stk['endUtc'],glo['startUtc'],glo['endUtc'])
     print('Built:',{p.name:p.stat().st_size for p in A.glob('*.bin')})
 if __name__=='__main__': main()
