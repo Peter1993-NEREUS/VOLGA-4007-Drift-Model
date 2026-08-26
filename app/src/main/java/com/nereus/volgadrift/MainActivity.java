@@ -52,7 +52,6 @@ public class MainActivity extends Activity {
         w.setStatusBarColor(Color.rgb(6,31,51));
         w.setNavigationBarColor(Color.rgb(6,31,51));
         createNotificationChannel();
-        requestNotificationPermission();
 
         root=new FrameLayout(this);
         root.setBackgroundColor(Color.rgb(6,31,51));
@@ -100,17 +99,18 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void requestNotificationPermission(){
-        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFICATION_PERMISSION);
-        }
+    private boolean notificationAllowed(String state){
+        if(Build.VERSION.SDK_INT<33)return true;
+        if(checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED)return true;
+        if("start".equalsIgnoreCase(state))requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFICATION_PERMISSION);
+        return false;
     }
 
     private void showCmemsNotification(String state,String text){
-        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
+        String st=state==null?"progress":state.toLowerCase();
+        if(!notificationAllowed(st))return;
         NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
         if(nm==null)return;
-        String st=state==null?"progress":state.toLowerCase();
         String title;
         boolean active;
         if("success".equals(st)){title="CMEMS data ready";active=false;}
