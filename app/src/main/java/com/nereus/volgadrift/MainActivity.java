@@ -1,8 +1,14 @@
 package com.nereus.volgadrift;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.os.Bundle;
 import android.os.Build;
+import android.content.pm.PackageManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -34,6 +40,9 @@ public class MainActivity extends Activity {
     private byte[] pendingBytes;
     private String pendingMime="application/octet-stream";
     private static final int CREATE_FILE=701;
+    private static final int NOTIFICATION_PERMISSION=912;
+    private static final int CMEMS_NOTIFICATION_ID=4101;
+    private static final String CMEMS_CHANNEL="cmems_updates";
     private static final String ASSET_HOST="appassets.androidplatform.net";
     private static final String PREFS="marine_drift_private";
 
@@ -42,6 +51,8 @@ public class MainActivity extends Activity {
         Window w=getWindow();
         w.setStatusBarColor(Color.rgb(6,31,51));
         w.setNavigationBarColor(Color.rgb(6,31,51));
+        createNotificationChannel();
+        requestNotificationPermission();
 
         root=new FrameLayout(this);
         root.setBackgroundColor(Color.rgb(6,31,51));
@@ -54,7 +65,7 @@ public class MainActivity extends Activity {
         WebSettings s=web.getSettings();
         s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(true); s.setAllowContentAccess(true);
         s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setLoadWithOverviewMode(true); s.setUseWideViewPort(true);
-        s.setUserAgentString(s.getUserAgentString()+" MarineDrift-NEREUS/1.4.2 (+https://github.com/Peter1993-NEREUS/VOLGA-4007-Drift-Model)");
+        s.setUserAgentString(s.getUserAgentString()+" MarineDrift-NEREUS/1.5.0 (+https://github.com/Peter1993-NEREUS/VOLGA-4007-Drift-Model)");
         web.setWebChromeClient(new WebChromeClient());
         web.setWebViewClient(new WebViewClient(){
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request){
@@ -73,11 +84,55 @@ public class MainActivity extends Activity {
             }
             @Override public void onPageFinished(WebView view,String url){
                 super.onPageFinished(view,url);
-                view.evaluateJavascript("(function(){if(!document.getElementById('v141loader')){var s=document.createElement('script');s.id='v141loader';s.src='v141.js';document.body.appendChild(s);}})();",null);
+                view.evaluateJavascript("(function(){function v15(){if(!document.getElementById('v150loader')){var q=document.createElement('script');q.id='v150loader';q.src='v150.js';document.body.appendChild(q);}}var old=document.getElementById('v141loader');if(!old){var s=document.createElement('script');s.id='v141loader';s.src='v141.js';s.onload=v15;document.body.appendChild(s);}else{v15();}})();",null);
             }
         });
         web.addJavascriptInterface(new Bridge(), "Android");
         web.loadUrl("https://"+ASSET_HOST+"/assets/index.html");
+    }
+
+    private void createNotificationChannel(){
+        if(Build.VERSION.SDK_INT>=26){
+            NotificationChannel ch=new NotificationChannel(CMEMS_CHANNEL,"CMEMS data updates",NotificationManager.IMPORTANCE_DEFAULT);
+            ch.setDescription("Marine Drift Model CMEMS download and pack status");
+            NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+            if(nm!=null)nm.createNotificationChannel(ch);
+        }
+    }
+
+    private void requestNotificationPermission(){
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFICATION_PERMISSION);
+        }
+    }
+
+    private void showCmemsNotification(String state,String text){
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
+        NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+        if(nm==null)return;
+        String st=state==null?"progress":state.toLowerCase();
+        String title;
+        boolean active;
+        if("success".equals(st)){title="CMEMS data ready";active=false;}
+        else if("error".equals(st)){title="CMEMS update failed";active=false;}
+        else {title="CMEMS data update";active=true;}
+
+        Intent open=new Intent(this,MainActivity.class);
+        open.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent pi=PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CMEMS_CHANNEL):new Notification.Builder(this);
+        b.setSmallIcon(R.drawable.ic_notification)
+         .setContentTitle(title)
+         .setContentText(text==null||text.trim().isEmpty()?title:text)
+         .setStyle(new Notification.BigTextStyle().bigText(text==null||text.trim().isEmpty()?title:text))
+         .setContentIntent(pi)
+         .setOnlyAlertOnce(active)
+         .setOngoing(active)
+         .setAutoCancel(!active)
+         .setShowWhen(true)
+         .setWhen(System.currentTimeMillis());
+        if(active)b.setProgress(0,0,true);else b.setProgress(0,0,false);
+        nm.notify(CMEMS_NOTIFICATION_ID,b.build());
     }
 
     private void applySystemBarInsets(){
@@ -113,8 +168,15 @@ public class MainActivity extends Activity {
     }
 
     public class Bridge {
-        @JavascriptInterface public void printPdf() {
-            runOnUiThread(() -> printReport());
+        @JavascriptInterface public void printPdf() { runOnUiThread(() -> printReport()); }
+        @JavascriptInterface public void notifyCmems(String state,String text) { runOnUiThread(() -> showCmemsNotification(state,text)); }
+        @JavascriptInterface public void setClipboardText(String text) {
+            runOnUiThread(() -> {
+                try{
+                    ClipboardManager cm=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+                    if(cm!=null)cm.setPrimaryClip(ClipData.newPlainText("Marine Drift Model",text==null?"":text));
+                }catch(Exception ignored){}
+            });
         }
         @JavascriptInterface public void saveText(String filename,String text) {
             pendingBytes=text.getBytes(StandardCharsets.UTF_8); pendingMime="text/csv"; launchCreate(filename,pendingMime);
