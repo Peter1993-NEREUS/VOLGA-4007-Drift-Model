@@ -1,0 +1,45 @@
+name: Vessel Particulars Lookup
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Request ID
+        required: true
+        type: string
+      imo:
+        description: IMO number
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  lookup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Lookup public vessel particulars
+        run: |
+          mkdir -p publish
+          python tools/lookup_vessel.py --imo '${{ inputs.imo }}' --request-id '${{ inputs.request_id }}' --out publish/vessel.json
+
+      - name: Publish latest lookup result
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd publish
+          git init
+          git config user.name 'Marine Drift Lookup Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git checkout -b lookup
+          git add vessel.json
+          git commit -m "Vessel lookup ${{ inputs.imo }} ${{ inputs.request_id }}"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin lookup
