@@ -35,49 +35,76 @@ jobs:
           python-version: '3.12'
       - name: Install tools
         run: python -m pip install --upgrade pip copernicusmarine netCDF4 numpy
+
       - name: Validate request and calculate bbox
         shell: bash
         run: |
           test -n "$COPERNICUSMARINE_SERVICE_USERNAME" || (echo 'Missing CMEMS_USERNAME' && exit 2)
           test -n "$COPERNICUSMARINE_SERVICE_PASSWORD" || (echo 'Missing CMEMS_PASSWORD' && exit 2)
           python - <<'PY' >> "$GITHUB_ENV"
-          import os
+          from datetime import datetime, timezone
           lat=float('${{ inputs.center_lat }}'); lon=float('${{ inputs.center_lon }}'); r=float('${{ inputs.radius_deg }}')
+          start=datetime.fromisoformat('${{ inputs.start_utc }}'.replace('Z','+00:00'))
+          end=datetime.fromisoformat('${{ inputs.end_utc }}'.replace('Z','+00:00'))
           if not (-80 <= lat <= 89): raise SystemExit('Latitude must be -80..89')
           if not (-179.9 <= lon <= 179.9): raise SystemExit('Longitude must be -179.9..179.9')
           if not (0.25 <= r <= 12): raise SystemExit('radius_deg must be 0.25..12')
+          if end <= start: raise SystemExit('End must be later than start')
+          if (end-start).total_seconds() > 31*86400: raise SystemExit('Maximum online window is 31 days')
           lo=max(-179.9,lon-r); hi=min(179.9,lon+r); la=max(-80,lat-r); ha=min(89,lat+r)
           print(f'MIN_LON={lo}'); print(f'MAX_LON={hi}'); print(f'MIN_LAT={la}'); print(f'MAX_LAT={ha}')
-          print(f'REG_Z={min(5.0,max(.5,float("${{ inputs.draft_m }}")))}')
+          print(f'REG_Z={min(20.0,max(.5,float("${{ inputs.draft_m }}")))}')
           print('IS_BLACKSEA=1' if 27 <= lon <= 42 and 40 <= lat <= 47 else 'IS_BLACKSEA=0')
           PY
-      - name: Select datasets
+
+      - name: Select datasets and padded source windows
         shell: bash
         run: |
           START='${{ inputs.start_utc }}'
           if [[ "$START" > '2022-06-01T00:00:00Z' ]]; then
-            echo 'CURRENT_DS=cmems_mod_glo_phy_anfc_0.083deg_PT1H-m' >> "$GITHUB_ENV"
+            echo 'CURRENT_DS=cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i' >> "$GITHUB_ENV"
+            echo 'CURRENT_PAD_H=6' >> "$GITHUB_ENV"
           else
             echo 'CURRENT_DS=cmems_mod_glo_phy_my_0.083deg_P1D-m' >> "$GITHUB_ENV"
+            echo 'CURRENT_PAD_H=24' >> "$GITHUB_ENV"
           fi
           if [[ "$START" > '2022-11-01T00:00:00Z' ]]; then
             echo 'WAVE_DS=cmems_mod_glo_wav_anfc_0.083deg_PT3H-i' >> "$GITHUB_ENV"
           else
             echo 'WAVE_DS=cmems_mod_glo_wav_my_0.2deg_PT3H-i' >> "$GITHUB_ENV"
           fi
-      - name: Download global currents
+          python - <<'PY' >> "$GITHUB_ENV"
+          from datetime import datetime,timedelta
+          s=datetime.fromisoformat('${{ inputs.start_utc }}'.replace('Z','+00:00'))
+          e=datetime.fromisoformat('${{ inputs.end_utc }}'.replace('Z','+00:00'))
+          cp=int('${{ env.CURRENT_PAD_H }}' or '6') if False else None
+          # GitHub env written in this same shell step is not yet visible to Python,
+          # so infer current padding from the requested date using the same threshold.
+          cpad=6 if s.isoformat().replace('+00:00','Z') > '2022-06-01T00:00:00Z' else 24
+          def z(d): return d.isoformat().replace('+00:00','Z')
+          print('CURRENT_START='+z(s-timedelta(hours=cpad)))
+          print('CURRENT_END='+z(e+timedelta(hours=cpad)))
+          print('WAVE_START='+z(s-timedelta(hours=3)))
+          print('WAVE_END='+z(e+timedelta(hours=3)))
+          print('REG_START='+z(s-timedelta(hours=1)))
+          print('REG_END='+z(e+timedelta(hours=1)))
+          PY
+
+      - name: Download global 3D currents
         run: |
           mkdir -p data publish
           copernicusmarine subset -i "$CURRENT_DS" -v uo -v vo \
             -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" \
-            -z 0 -Z '${{ inputs.draft_m }}' -t '${{ inputs.start_utc }}' -T '${{ inputs.end_utc }}' \
+            -z 0 -Z '${{ inputs.draft_m }}' -t "$CURRENT_START" -T "$CURRENT_END" \
             -f data/global.nc --overwrite
+
       - name: Download global Stokes drift
         run: |
           copernicusmarine subset -i "$WAVE_DS" -v VSDX -v VSDY \
             -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" \
-            -t '${{ inputs.start_utc }}' -T '${{ inputs.end_utc }}' \
+            -t "$WAVE_START" -T "$WAVE_END" \
             -f data/stokes.nc --overwrite
+
       - name: Try Black Sea regional current enhancement
         if: env.IS_BLACKSEA == '1'
         shell: bash
@@ -85,9 +112,10 @@ jobs:
           set +e
           copernicusmarine subset -i cmems_mod_blk_phy-cur_anfc_2.5km_PT1H-m -v uo -v vo \
             -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" -z 0 -Z "$REG_Z" \
-            -t '${{ inputs.start_utc }}' -T '${{ inputs.end_utc }}' -f data/regional.nc --overwrite
+            -t "$REG_START" -T "$REG_END" -f data/regional.nc --overwrite
           if [ $? -ne 0 ]; then rm -f data/regional.nc; fi
           exit 0
+
       - name: Build compact pack
         shell: bash
         run: |
@@ -95,10 +123,11 @@ jobs:
           if [ -s data/regional.nc ]; then REG='--regional data/regional.nc'; fi
           python tools/build_dynamic_pack.py \
             --global-current data/global.nc --stokes data/stokes.nc $REG --out publish \
-            --request-id '${{ inputs.request_id }}' --draft '${{ inputs.draft_m }}' \
-            --vessel '${{ inputs.vessel_name }}' --imo '${{ inputs.imo }}' --cargo '${{ inputs.cargo }}' \
+            --request-id '${{ inputs.request_id }}' --start-utc '${{ inputs.start_utc }}' --end-utc '${{ inputs.end_utc }}' \
+            --draft '${{ inputs.draft_m }}' --vessel '${{ inputs.vessel_name }}' --imo '${{ inputs.imo }}' --cargo '${{ inputs.cargo }}' \
             --loa '${{ inputs.loa_m }}' --beam '${{ inputs.beam_m }}' --leeway '${{ inputs.leeway }}' \
             --local-offset '${{ inputs.local_offset }}' --current-product "$CURRENT_DS" --wave-product "$WAVE_DS"
+
       - name: Publish latest pack to data branch
         shell: bash
         env:
