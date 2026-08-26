@@ -1,0 +1,115 @@
+name: Build Online CMEMS Pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id: {description: Request ID, required: true, type: string}
+      start_utc: {description: Start UTC ISO, required: true, type: string}
+      end_utc: {description: End UTC ISO, required: true, type: string}
+      center_lat: {description: Center latitude, required: true, type: string}
+      center_lon: {description: Center longitude, required: true, type: string}
+      radius_deg: {description: Data radius in degrees, required: true, default: '3.0', type: string}
+      draft_m: {description: Vessel draft, required: true, default: '4.68', type: string}
+      vessel_name: {description: Vessel name, required: true, default: 'VOLGA-4007', type: string}
+      imo: {description: IMO, required: false, default: '', type: string}
+      cargo: {description: Cargo description, required: false, default: '', type: string}
+      loa_m: {description: LOA m, required: false, default: '0', type: string}
+      beam_m: {description: Beam m, required: false, default: '0', type: string}
+      leeway: {description: Leeway fraction, required: true, default: '0.003', type: string}
+      local_offset: {description: Local UTC offset hours, required: true, default: '3', type: string}
+
+permissions:
+  contents: write
+
+env:
+  COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.CMEMS_USERNAME }}
+  COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.CMEMS_PASSWORD }}
+
+jobs:
+  build-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install tools
+        run: python -m pip install --upgrade pip copernicusmarine netCDF4 numpy
+      - name: Validate request and calculate bbox
+        shell: bash
+        run: |
+          test -n "$COPERNICUSMARINE_SERVICE_USERNAME" || (echo 'Missing CMEMS_USERNAME' && exit 2)
+          test -n "$COPERNICUSMARINE_SERVICE_PASSWORD" || (echo 'Missing CMEMS_PASSWORD' && exit 2)
+          python - <<'PY' >> "$GITHUB_ENV"
+          import os
+          lat=float('${{ inputs.center_lat }}'); lon=float('${{ inputs.center_lon }}'); r=float('${{ inputs.radius_deg }}')
+          if not (-80 <= lat <= 89): raise SystemExit('Latitude must be -80..89')
+          if not (-179.9 <= lon <= 179.9): raise SystemExit('Longitude must be -179.9..179.9')
+          if not (0.25 <= r <= 12): raise SystemExit('radius_deg must be 0.25..12')
+          lo=max(-179.9,lon-r); hi=min(179.9,lon+r); la=max(-80,lat-r); ha=min(89,lat+r)
+          print(f'MIN_LON={lo}'); print(f'MAX_LON={hi}'); print(f'MIN_LAT={la}'); print(f'MAX_LAT={ha}')
+          print(f'REG_Z={min(5.0,max(.5,float("${{ inputs.draft_m }}")))}')
+          print('IS_BLACKSEA=1' if 27 <= lon <= 42 and 40 <= lat <= 47 else 'IS_BLACKSEA=0')
+          PY
+      - name: Select datasets
+        shell: bash
+        run: |
+          START='${{ inputs.start_utc }}'
+          if [[ "$START" > '2022-06-01T00:00:00Z' ]]; then
+            echo 'CURRENT_DS=cmems_mod_glo_phy_anfc_0.083deg_PT1H-m' >> "$GITHUB_ENV"
+          else
+            echo 'CURRENT_DS=cmems_mod_glo_phy_my_0.083deg_P1D-m' >> "$GITHUB_ENV"
+          fi
+          if [[ "$START" > '2022-11-01T00:00:00Z' ]]; then
+            echo 'WAVE_DS=cmems_mod_glo_wav_anfc_0.083deg_PT3H-i' >> "$GITHUB_ENV"
+          else
+            echo 'WAVE_DS=cmems_mod_glo_wav_my_0.2deg_PT3H-i' >> "$GITHUB_ENV"
+          fi
+      - name: Download global currents
+        run: |
+          mkdir -p data publish
+          copernicusmarine subset -i "$CURRENT_DS" -v uo -v vo \
+            -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" \
+            -z 0 -Z '${{ inputs.draft_m }}' -t '${{ inputs.start_utc }}' -T '${{ inputs.end_utc }}' \
+            -f data/global.nc --overwrite
+      - name: Download global Stokes drift
+        run: |
+          copernicusmarine subset -i "$WAVE_DS" -v VSDX -v VSDY \
+            -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" \
+            -t '${{ inputs.start_utc }}' -T '${{ inputs.end_utc }}' \
+            -f data/stokes.nc --overwrite
+      - name: Try Black Sea regional current enhancement
+        if: env.IS_BLACKSEA == '1'
+        shell: bash
+        run: |
+          set +e
+          copernicusmarine subset -i cmems_mod_blk_phy-cur_anfc_2.5km_PT1H-m -v uo -v vo \
+            -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" -z 0 -Z "$REG_Z" \
+            -t '${{ inputs.start_utc }}' -T '${{ inputs.end_utc }}' -f data/regional.nc --overwrite
+          if [ $? -ne 0 ]; then rm -f data/regional.nc; fi
+          exit 0
+      - name: Build compact pack
+        shell: bash
+        run: |
+          REG=''
+          if [ -s data/regional.nc ]; then REG='--regional data/regional.nc'; fi
+          python tools/build_dynamic_pack.py \
+            --global-current data/global.nc --stokes data/stokes.nc $REG --out publish \
+            --request-id '${{ inputs.request_id }}' --draft '${{ inputs.draft_m }}' \
+            --vessel '${{ inputs.vessel_name }}' --imo '${{ inputs.imo }}' --cargo '${{ inputs.cargo }}' \
+            --loa '${{ inputs.loa_m }}' --beam '${{ inputs.beam_m }}' --leeway '${{ inputs.leeway }}' \
+            --local-offset '${{ inputs.local_offset }}' --current-product "$CURRENT_DS" --wave-product "$WAVE_DS"
+      - name: Publish latest pack to data branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd publish
+          git init
+          git config user.name 'VOLGA Drift Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git checkout -b data
+          git add .
+          git commit -m "CMEMS pack ${{ inputs.request_id }}"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin data
