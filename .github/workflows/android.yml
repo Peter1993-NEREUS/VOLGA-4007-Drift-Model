@@ -71,12 +71,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk VOLGA4007-Drift-FullLoad-6000MT-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.4.0-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VOLGA4007-Drift-FullLoad-6000MT-APK
-          path: VOLGA4007-Drift-FullLoad-6000MT-debug.apk
+          name: Marine-Drift-Model-by-NEREUS-v1.4.0-APK
+          path: Marine-Drift-Model-by-NEREUS-v1.4.0-debug.apk
           if-no-files-found: error
           retention-days: 30
