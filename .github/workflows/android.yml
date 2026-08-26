@@ -29,25 +29,40 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Validate v1.4.2 JavaScript and UI wiring
+      - name: Validate v1.6 JavaScript, Python and feature wiring
         run: |
           node --check app/src/main/assets/v14.js
           node --check app/src/main/assets/v141.js
+          node --check app/src/main/assets/v150.js
+          node --check app/src/main/assets/v151.js
+          node --check app/src/main/assets/v152.js
+          node --check app/src/main/assets/v160.js
+          python -m py_compile tools/lookup_vessel.py tools/build_driftpack.py tools/build_dynamic_pack.py
           python - <<'PY'
           import re
           from pathlib import Path
           html=Path('app/src/main/assets/index.html').read_text(encoding='utf-8')
-          js=Path('app/src/main/assets/v14.js').read_text(encoding='utf-8')
-          enh=Path('app/src/main/assets/v141.js').read_text(encoding='utf-8')
+          base=Path('app/src/main/assets/v14.js').read_text(encoding='utf-8')
+          enh='\n'.join(Path(f'app/src/main/assets/{x}').read_text(encoding='utf-8') for x in ['v141.js','v150.js','v151.js','v152.js','v160.js'])
+          java=Path('app/src/main/java/com/nereus/volgadrift/MainActivity.java').read_text(encoding='utf-8')
+          manifest=Path('app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
           ids=set(re.findall(r'id="([^"]+)"',html))
-          refs=set(re.findall(r"\$\('([^']+)'\)",js))
+          refs=set(re.findall(r"\$\('([^']+)'\)",base))
           missing=sorted(refs-ids)
-          if missing:
-              raise SystemExit('Missing HTML ids referenced by JS: '+', '.join(missing))
-          for required in ['shipPair','Android.printPdf','renderPdfRouteMap','reportMapPrint','Developed by Peter Mirronov','mirron_petr@mail.ru','v1.4.2']:
-              if required not in enh:
-                  raise SystemExit('Missing v1.4.2 feature marker: '+required)
-          print(f'UI validation OK: {len(ids)} ids, {len(refs)} base JS refs; v1.4.2 enhancements present')
+          if missing: raise SystemExit('Missing base HTML ids: '+', '.join(missing))
+          required=[
+            'renderPdfRouteMap','reportMapPrint','Developed by Peter Mirronov','mirron_petr@mail.ru',
+            'Pre-flight check','COPY DRIFT SUMMARY','notifyCmems','Recent calculations',
+            'CUSTOM VESSEL','SAVE AS NEW','RENAME','vessel-lookup.yml','validIMO',
+            'Wind data','LOAD / RELOAD WIND','Weather at point','POINT WEATHER FORECAST','weatherPrintMode','v1.6.0'
+          ]
+          for marker in required:
+            if marker not in enh and marker not in java:
+              raise SystemExit('Missing v1.6 feature marker: '+marker)
+          if 'POST_NOTIFICATIONS' not in manifest: raise SystemExit('Notification permission missing')
+          for loader in ['v141.js','v150.js','v151.js','v152.js','v160.js']:
+            if loader not in java: raise SystemExit('Loader missing: '+loader)
+          print(f'v1.6 validation OK: {len(ids)} base IDs, {len(refs)} base JS refs')
           PY
 
       - name: Install Copernicus and NetCDF tools
@@ -92,12 +107,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.4.2-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.6.0-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Marine-Drift-Model-by-NEREUS-v1.4.2-APK
-          path: Marine-Drift-Model-by-NEREUS-v1.4.2-debug.apk
+          name: Marine-Drift-Model-by-NEREUS-v1.6.0-APK
+          path: Marine-Drift-Model-by-NEREUS-v1.6.0-debug.apk
           if-no-files-found: error
           retention-days: 30
