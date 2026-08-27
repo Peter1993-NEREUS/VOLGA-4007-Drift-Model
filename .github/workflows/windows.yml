@@ -32,7 +32,7 @@ jobs:
       - name: Validate desktop and shared JavaScript
         shell: pwsh
         run: |
-          $files = @('v14','v141','v150','v151','v152','v160','v161','v162','v163','v164','v165','v166','v167','v168','v169','v170','v171','v172','v173','v174')
+          $files = @('v14','v141','v150','v151','v152','v160','v161','v162','v163','v164','v165','v166','v167','v168','v169','v170','v171','v172','v173','v174','v175','v176')
           foreach ($f in $files) { node --check "app/src/main/assets/$f.js" }
           node --check desktop/main.js
           node --check desktop/preload.js
@@ -43,15 +43,21 @@ jobs:
           $v172 = Get-Content app/src/main/assets/v172.js -Raw
           $v173 = Get-Content app/src/main/assets/v173.js -Raw
           $v174 = Get-Content app/src/main/assets/v174.js -Raw
+          $v175 = Get-Content app/src/main/assets/v175.js -Raw
+          $v176 = Get-Content app/src/main/assets/v176.js -Raw
           $lookup = Get-Content tools/lookup_vessel.py -Raw
-          foreach ($marker in @('contextIsolation: true','nodeIntegration: false','safeStorage','127.0.0.1','printToPDF','v171.js')) { if (-not $main.Contains($marker)) { throw "Desktop marker missing: $marker" } }
+          $pkg = Get-Content package.json -Raw
+          foreach ($marker in @('contextIsolation: true','nodeIntegration: false','safeStorage','127.0.0.1','printToPDF','v171.js','v175.js','v176.js')) { if (-not $main.Contains($marker)) { throw "Desktop marker missing: $marker" } }
           foreach ($marker in @('getNotificationStatus','sendTestNotification','openNotificationSettings','getGithubToken')) { if (-not $pre.Contains($marker)) { throw "Preload bridge marker missing: $marker" } }
           foreach ($marker in @('v172.js','v173.js')) { if (-not $v171.Contains($marker)) { throw "Chained route module missing from v171: $marker" } }
           if (-not $v173.Contains('v174.js')) { throw 'AUTO v2 chained loader missing from v173' }
           foreach ($marker in @('LEEWAY MODEL','CALIBRATE LEEWAY','AUTO FALLBACK','calibrationValid')) { if (-not $v172.Contains($marker)) { throw "Leeway feature marker missing: $marker" } }
           foreach ($marker in @('ROUTE-AWARE WIND','spatial points','multi-point','sampleRouteWind')) { if (-not $v173.Contains($marker)) { throw "Route wind feature marker missing: $marker" } }
           foreach ($marker in @('AUTO v2','SHIP GEOMETRY','PROJECTED LATERAL AREA','GT VOLUME','calibrationValidV2','volumeFromGt')) { if (-not $v174.Contains($marker)) { throw "AUTO v2 marker missing: $marker" } }
+          foreach ($marker in @('pending-test-fixes','POLL_MS=4000','CMEMS workflow','fast failure detection')) { if (-not $v175.Contains($marker)) { throw "CMEMS fast-path marker missing: $marker" } }
+          foreach ($marker in @('STARTUP FAST PATH','regional.bin','stokes.bin','global.bin','firstSilent')) { if (-not $v176.Contains($marker)) { throw "Startup fast-path marker missing: $marker" } }
           foreach ($marker in @('geometrySchema','Length Between Perpendiculars','Moulded Depth','Displacement (t)','Air Draught')) { if (-not $lookup.Contains($marker)) { throw "Extended lookup marker missing: $marker" } }
+          foreach ($marker in @('electron-builder --win nsis --x64','"target": "nsis"','"perMachine": false','Windows-Setup')) { if (-not $pkg.Contains($marker)) { throw "Windows setup marker missing: $marker" } }
 
       - name: Install Copernicus and NetCDF tools
         run: python -m pip install --upgrade pip copernicusmarine netCDF4 numpy
@@ -93,17 +99,17 @@ jobs:
       - name: Install pinned desktop dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Build portable Windows EXE
+      - name: Build installed Windows Setup EXE
         run: npm run dist:win
 
       - name: Show build output
         shell: pwsh
         run: Get-ChildItem -Recurse dist | Select-Object FullName,Length
 
-      - name: Upload Windows EXE
+      - name: Upload Windows Setup EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Marine-Drift-Model-by-NEREUS-v1.7.0-Windows-EXE
-          path: dist/*.exe
+          name: Marine-Drift-Model-by-NEREUS-v1.7.0-Windows-Setup-EXE
+          path: dist/*Windows-Setup-*.exe
           if-no-files-found: error
           retention-days: 30
