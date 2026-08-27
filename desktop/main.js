@@ -9,7 +9,7 @@ const APP_ID = 'com.nereus.marinedrift';
 const PRODUCT = 'Marine Drift Model by NEREUS';
 const VERSION = '1.7.0';
 const ASSET_DIR = path.resolve(__dirname, '..', 'app', 'src', 'main', 'assets');
-const ENHANCEMENTS = ['v176.js','v141.js','v150.js','v151.js','v152.js','v160.js','v161.js','v162.js','v163.js','v164.js','v165.js','v166.js','v167.js','v168.js','v169.js','v170.js','v171.js'];
+const ENHANCEMENTS = ['v176.js','v175.js','v141.js','v150.js','v151.js','v152.js','v160.js','v161.js','v162.js','v163.js','v164.js','v165.js','v166.js','v167.js','v168.js','v169.js','v170.js','v171.js'];
 
 let mainWindow = null;
 let assetServer = null;
