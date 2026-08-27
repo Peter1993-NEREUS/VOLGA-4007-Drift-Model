@@ -65,7 +65,8 @@
   }
   function hookLookup(){if($p('lookupImo'))$p('lookupImo').onclick=lookupOnline}
   function hookReset(){let b=$p('reset');if(!b)return;b.onclick=()=>{clearResults();selectCustom(false);toast('Route cleared • CUSTOM VESSEL selected')}}
+  function loadCmemsFastPath(){if(document.getElementById('enh175'))return;let s=document.createElement('script');s.id='enh175';s.src='v175.js';s.onerror=()=>console.error('Failed to load v175.js');document.body.appendChild(s)}
   function version(){let sub=document.querySelector('header .sub');if(sub){sub.textContent=sub.textContent.replace(/ • v1\.5\.\d+/g,'');sub.insertAdjacentHTML('beforeend',' • v1.5.1')}}
-  function boot(){try{installPresetUi();hookLookup();hookReset();version()}catch(e){console.error('v1.5.1 preset/IMO enhancements',e)}}
+  function boot(){try{installPresetUi();hookLookup();hookReset();version();setTimeout(loadCmemsFastPath,350)}catch(e){console.error('v1.5.1 preset/IMO enhancements',e)}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,120));else setTimeout(boot,120);
 })();
