@@ -32,15 +32,19 @@ jobs:
       - name: Validate desktop and shared JavaScript
         shell: pwsh
         run: |
-          $files = @('v14','v141','v150','v151','v152','v160','v161','v162','v163','v164','v165','v166','v167','v168','v169','v170','v171')
+          $files = @('v14','v141','v150','v151','v152','v160','v161','v162','v163','v164','v165','v166','v167','v168','v169','v170','v171','v172')
           foreach ($f in $files) { node --check "app/src/main/assets/$f.js" }
           node --check desktop/main.js
           node --check desktop/preload.js
           python -m py_compile tools/lookup_vessel.py tools/build_driftpack.py tools/build_dynamic_pack.py
           $main = Get-Content desktop/main.js -Raw
           $pre = Get-Content desktop/preload.js -Raw
+          $v171 = Get-Content app/src/main/assets/v171.js -Raw
+          $v172 = Get-Content app/src/main/assets/v172.js -Raw
           foreach ($marker in @('contextIsolation: true','nodeIntegration: false','safeStorage','127.0.0.1','printToPDF','v171.js')) { if (-not $main.Contains($marker)) { throw "Desktop marker missing: $marker" } }
           foreach ($marker in @('getNotificationStatus','sendTestNotification','openNotificationSettings','getGithubToken')) { if (-not $pre.Contains($marker)) { throw "Preload bridge marker missing: $marker" } }
+          foreach ($marker in @('v172.js')) { if (-not $v171.Contains($marker)) { throw "Leeway chained loader missing: $marker" } }
+          foreach ($marker in @('LEEWAY MODEL','CALIBRATE LEEWAY','AUTO FALLBACK','calibrationValid')) { if (-not $v172.Contains($marker)) { throw "Leeway feature marker missing: $marker" } }
 
       - name: Install Copernicus and NetCDF tools
         run: python -m pip install --upgrade pip copernicusmarine netCDF4 numpy
