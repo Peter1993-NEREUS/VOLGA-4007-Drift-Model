@@ -112,7 +112,13 @@
   }
   function loadLeeway172(){
     if(document.getElementById('enh172'))return;
-    const s=document.createElement('script');s.id='enh172';s.src='v172.js';s.onerror=()=>pushError('MODULE','Failed to load v172.js');document.body.appendChild(s);
+    const s=document.createElement('script');s.id='enh172';s.src='v172.js';
+    s.onerror=()=>pushError('MODULE','Failed to load v172.js');
+    s.onload=()=>{
+      if(document.getElementById('enh173'))return;
+      const q=document.createElement('script');q.id='enh173';q.src='v173.js';q.onerror=()=>pushError('MODULE','Failed to load v173.js');document.body.appendChild(q);
+    };
+    document.body.appendChild(s);
   }
 
   function boot(){try{styles();installDiagnostics();guardWeather();hookState();setTimeout(enforceRouteWeather,50);setTimeout(updateHealth,100);setTimeout(loadLeeway172,180)}catch(e){pushError('BOOT',e?.message||e)}}
