@@ -1,0 +1,39 @@
+{
+  "name": "marine-drift-model-by-nereus",
+  "version": "1.7.0",
+  "description": "Marine Drift Model by NEREUS — CMEMS currents, Stokes drift and route weather",
+  "main": "desktop/main.js",
+  "author": "NEREUS / Peter Mirronov",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start:win": "electron .",
+    "check:desktop": "node --check desktop/main.js && node --check desktop/preload.js && node --check app/src/main/assets/v171.js",
+    "dist:win": "electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "44.0.0",
+    "electron-builder": "26.15.7"
+  },
+  "build": {
+    "appId": "com.nereus.marinedrift",
+    "productName": "Marine Drift Model by NEREUS",
+    "asar": true,
+    "compression": "maximum",
+    "files": [
+      "desktop/**/*",
+      "app/src/main/assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "Marine-Drift-Model-by-NEREUS-v${version}-Windows-${arch}.${ext}",
+      "requestedExecutionLevel": "asInvoker"
+    }
+  }
+}
