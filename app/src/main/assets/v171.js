@@ -110,7 +110,11 @@
     document.addEventListener('change',()=>setTimeout(updateHealth,0),true);
     if(typeof calculate==='function'&&!calculate.__diag171){const old=calculate;calculate=function(...a){try{return old.apply(this,a)}catch(e){pushError('ROUTE',e?.message||e);throw e}finally{setTimeout(()=>{updateHealth();enforceRouteWeather()},0)}};calculate.__diag171=true}
   }
+  function loadLeeway172(){
+    if(document.getElementById('enh172'))return;
+    const s=document.createElement('script');s.id='enh172';s.src='v172.js';s.onerror=()=>pushError('MODULE','Failed to load v172.js');document.body.appendChild(s);
+  }
 
-  function boot(){try{styles();installDiagnostics();guardWeather();hookState();setTimeout(enforceRouteWeather,50);setTimeout(updateHealth,100)}catch(e){pushError('BOOT',e?.message||e)}}
+  function boot(){try{styles();installDiagnostics();guardWeather();hookState();setTimeout(enforceRouteWeather,50);setTimeout(updateHealth,100);setTimeout(loadLeeway172,180)}catch(e){pushError('BOOT',e?.message||e)}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1050));else setTimeout(boot,1050);
 })();
