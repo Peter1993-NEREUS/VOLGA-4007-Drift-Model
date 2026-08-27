@@ -41,6 +41,9 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private byte[] pendingBytes;
     private String pendingMime="application/octet-stream";
+    private int pendingNotificationId=0;
+    private String pendingNotificationState=null;
+    private String pendingNotificationText=null;
     private static final int CREATE_FILE=701;
     private static final int NOTIFICATION_PERMISSION=912;
     private static final int CMEMS_NOTIFICATION_ID=4101;
@@ -63,6 +66,7 @@ public class MainActivity extends Activity {
         root.addView(web,lp);
         setContentView(root);
         applySystemBarInsets();
+        root.postDelayed(this::requestNotificationPermissionIfNeeded,500);
 
         WebSettings s=web.getSettings();
         s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setAllowFileAccess(true); s.setAllowContentAccess(true);
@@ -115,18 +119,28 @@ public class MainActivity extends Activity {
         }
     }
 
-    private boolean notificationAllowed(String state){
+    private void requestNotificationPermissionIfNeeded(){
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFICATION_PERMISSION);
+        }
+    }
+
+    private boolean notificationAllowed(){
         if(Build.VERSION.SDK_INT<33)return true;
-        if(checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED)return true;
-        if("start".equalsIgnoreCase(state))requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFICATION_PERMISSION);
-        return false;
+        return checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED;
     }
 
     private void showModelNotification(int id,String state,String text,String progressTitle,String successTitle,String errorTitle){
         String st=state==null?"progress":state.toLowerCase();
-        if(!notificationAllowed(st))return;
+        if(!notificationAllowed()){
+            pendingNotificationId=id;
+            pendingNotificationState=st;
+            pendingNotificationText=text;
+            requestNotificationPermissionIfNeeded();
+            return;
+        }
         NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
-        if(nm==null)return;
+        if(nm==null||!nm.areNotificationsEnabled())return;
         String title; boolean active;
         if("success".equals(st)){title=successTitle;active=false;}
         else if("error".equals(st)){title=errorTitle;active=false;}
@@ -148,6 +162,20 @@ public class MainActivity extends Activity {
     }
     private void showVesselNotification(String state,String text){
         showModelNotification(VESSEL_NOTIFICATION_ID,state,text,"Vessel lookup","Vessel data ready","Vessel lookup failed");
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        if(requestCode==NOTIFICATION_PERMISSION && grantResults.length>0 && grantResults[0]==PackageManager.PERMISSION_GRANTED){
+            int id=pendingNotificationId;
+            String state=pendingNotificationState;
+            String text=pendingNotificationText;
+            pendingNotificationId=0;
+            pendingNotificationState=null;
+            pendingNotificationText=null;
+            if(id==CMEMS_NOTIFICATION_ID)showCmemsNotification(state,text);
+            else if(id==VESSEL_NOTIFICATION_ID)showVesselNotification(state,text);
+        }
     }
 
     private void applySystemBarInsets(){
