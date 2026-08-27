@@ -31,7 +31,7 @@ jobs:
 
       - name: Validate v1.7.0 JavaScript, Python and feature wiring
         run: |
-          for f in v14 v141 v150 v151 v152 v160 v161 v162 v163 v164 v165 v166 v167 v168 v169 v170; do
+          for f in v14 v141 v150 v151 v152 v160 v161 v162 v163 v164 v165 v166 v167 v168 v169 v170 v171; do
             node --check "app/src/main/assets/${f}.js"
           done
           python -m py_compile tools/lookup_vessel.py tools/build_driftpack.py tools/build_dynamic_pack.py
@@ -40,7 +40,7 @@ jobs:
           from pathlib import Path
           html=Path('app/src/main/assets/index.html').read_text(encoding='utf-8')
           base=Path('app/src/main/assets/v14.js').read_text(encoding='utf-8')
-          names=['v141.js','v150.js','v151.js','v152.js','v160.js','v161.js','v162.js','v163.js','v164.js','v165.js','v166.js','v167.js','v168.js','v169.js','v170.js']
+          names=['v141.js','v150.js','v151.js','v152.js','v160.js','v161.js','v162.js','v163.js','v164.js','v165.js','v166.js','v167.js','v168.js','v169.js','v170.js','v171.js']
           enh='\n'.join(Path('app/src/main/assets',x).read_text(encoding='utf-8') for x in names)
           java=Path('app/src/main/java/com/nereus/volgadrift/MainActivity.java').read_text(encoding='utf-8')
           manifest=Path('app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
@@ -49,15 +49,18 @@ jobs:
           refs=set(re.findall(r"\$\('([^']+)'\)",base))
           missing=sorted(refs-ids)
           if missing: raise SystemExit('Missing base HTML ids: '+', '.join(missing))
-          required=['Developed by Peter Mirronov','Pre-flight check','COPY DRIFT SUMMARY','Recent calculations','CUSTOM VESSEL','SAVE AS NEW','RENAME','Wind data','Weather at point','POINT WEATHER FORECAST','CUSTOM •','Vessel data lookup','START POINT','distance travelled','HISTORY SNAPSHOT','nereusPrintJobName','notifyVessel','v1.7.0']
+          required=['Developed by Peter Mirronov','Pre-flight check','COPY DRIFT SUMMARY','Recent calculations','CUSTOM VESSEL','SAVE AS NEW','RENAME','Wind data','Weather at point','POINT WEATHER FORECAST','CUSTOM •','Vessel data lookup','START POINT','distance travelled','HISTORY SNAPSHOT','nereusPrintJobName','notifyVessel','SYSTEM CHECK','routeAnchorMs','v1.7.0']
           for marker in required:
             if marker not in enh and marker not in java and marker not in gradle:
               raise SystemExit('Missing v1.7.0 marker: '+marker)
-          if 'POST_NOTIFICATIONS' not in manifest: raise SystemExit('Notification permission missing')
+          for marker in ['POST_NOTIFICATIONS','orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden']:
+            if marker not in manifest: raise SystemExit('Android manifest marker missing: '+marker)
+          for marker in ['getNotificationStatus','sendTestNotification','openNotificationSettings','onConfigurationChanged']:
+            if marker not in java: raise SystemExit('Android bridge marker missing: '+marker)
           for loader in names:
             if loader not in java: raise SystemExit('Loader missing: '+loader)
           if "versionName '1.7.0'" not in gradle: raise SystemExit('Android versionName mismatch')
-          print(f'v1.7.0 validation OK: {len(ids)} base IDs, {len(refs)} base JS refs')
+          print(f'v1.7.0 validation OK: {len(ids)} base IDs, {len(refs)} base JS refs, {len(names)} enhancement modules')
           PY
 
       - name: Install Copernicus and NetCDF tools
@@ -102,12 +105,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.7.0-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Marine-Drift-Model-by-NEREUS-v1.7.0-PRE-RELEASE.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Marine-Drift-Model-by-NEREUS-v1.7.0-APK
-          path: Marine-Drift-Model-by-NEREUS-v1.7.0-debug.apk
+          name: Marine-Drift-Model-by-NEREUS-v1.7.0-PRE-RELEASE-APK
+          path: Marine-Drift-Model-by-NEREUS-v1.7.0-PRE-RELEASE.apk
           if-no-files-found: error
           retention-days: 30
