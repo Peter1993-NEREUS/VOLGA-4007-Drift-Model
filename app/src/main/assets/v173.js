@@ -33,7 +33,6 @@
     const r=profile?.rows;if(!r?.length||ms<r[0].ms||ms>r.at(-1).ms)return null;
     let lo=0,hi=r.length-1;while(hi-lo>1){let m=(lo+hi)>>1;if(r[m].ms<=ms)lo=m;else hi=m}
     const a=r[lo],b=r[Math.min(lo+1,r.length-1)],f=b.ms===a.ms?0:(ms-a.ms)/(b.ms-a.ms);
-    // Interpolate direction through vector space to avoid a 359°/001° discontinuity.
     const ta=(a.dir+180)*DEG,tb=(b.dir+180)*DEG;
     const ua=a.speed*Math.sin(ta),va=a.speed*Math.cos(ta),ub=b.speed*Math.sin(tb),vb=b.speed*Math.cos(tb);
     const u=ua*(1-f)+ub*f,v=va*(1-f)+vb*f,speed=Math.hypot(u,v),to=norm360(Math.atan2(u,v)/DEG),dir=norm360(to+180);
@@ -106,6 +105,10 @@
     document.addEventListener('change',e=>{if(['pair','startDate','startTime','endDate','endTime','offset','windMode','windSpeed','windDir'].includes(e.target?.id))invalidate()},true);
     if(typeof setStart==='function'&&!setStart.__routeWind173){const old=setStart;setStart=function(...a){const r=old.apply(this,a);invalidate();return r};setStart.__routeWind173=true}
   }
-  function boot(){try{installUi();patchField();patchWind();patchCalculate();hookInvalidation()}catch(e){console.error('Route wind v173 boot',e)}}
+  function loadAutoV2(){
+    if(document.getElementById('enh174'))return;
+    const s=document.createElement('script');s.id='enh174';s.src='v174.js';s.onerror=()=>console.error('Failed to load v174.js');document.body.appendChild(s);
+  }
+  function boot(){try{installUi();patchField();patchWind();patchCalculate();hookInvalidation();setTimeout(loadAutoV2,120)}catch(e){console.error('Route wind v173 boot',e)}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1450));else setTimeout(boot,1450);
 })();
