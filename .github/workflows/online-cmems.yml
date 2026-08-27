@@ -1,4 +1,5 @@
 name: Build Online CMEMS Pack
+run-name: CMEMS ${{ inputs.request_id }}
 
 on:
   workflow_dispatch:
@@ -11,8 +12,8 @@ on:
       radius_deg: {description: Data radius in degrees, required: true, default: '3.0', type: string}
       draft_m: {description: Vessel draft, required: true, default: '4.68', type: string}
       vessel_name: {description: Vessel name, required: true, default: 'VOLGA-4007', type: string}
-      imo: {description: IMO, required: false, default: '', type: string}
-      cargo: {description: Cargo description, required: false, default: '', type: string}
+      imo: {description: IMO number, required: false, default: '', type: string}
+      cargo: {description: Cargo MT, required: false, default: '', type: string}
       loa_m: {description: LOA m, required: false, default: '0', type: string}
       beam_m: {description: Beam m, required: false, default: '0', type: string}
       leeway: {description: Leeway fraction, required: true, default: '0.003', type: string}
@@ -21,6 +22,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: online-cmems-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.CMEMS_USERNAME }}
   COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.CMEMS_PASSWORD }}
@@ -28,13 +33,15 @@ env:
 jobs:
   build-pack:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - name: Install tools
-        run: python -m pip install --upgrade pip copernicusmarine netCDF4 numpy
+        run: python -m pip install --disable-pip-version-check copernicusmarine==2.4.1 netCDF4 numpy
 
       - name: Validate request and calculate bbox
         shell: bash
@@ -42,7 +49,7 @@ jobs:
           test -n "$COPERNICUSMARINE_SERVICE_USERNAME" || (echo 'Missing CMEMS_USERNAME' && exit 2)
           test -n "$COPERNICUSMARINE_SERVICE_PASSWORD" || (echo 'Missing CMEMS_PASSWORD' && exit 2)
           python - <<'PY' >> "$GITHUB_ENV"
-          from datetime import datetime, timezone
+          from datetime import datetime
           lat=float('${{ inputs.center_lat }}'); lon=float('${{ inputs.center_lon }}'); r=float('${{ inputs.radius_deg }}')
           start=datetime.fromisoformat('${{ inputs.start_utc }}'.replace('Z','+00:00'))
           end=datetime.fromisoformat('${{ inputs.end_utc }}'.replace('Z','+00:00'))
@@ -63,10 +70,8 @@ jobs:
           START='${{ inputs.start_utc }}'
           if [[ "$START" > '2022-06-01T00:00:00Z' ]]; then
             echo 'CURRENT_DS=cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i' >> "$GITHUB_ENV"
-            echo 'CURRENT_PAD_H=6' >> "$GITHUB_ENV"
           else
             echo 'CURRENT_DS=cmems_mod_glo_phy_my_0.083deg_P1D-m' >> "$GITHUB_ENV"
-            echo 'CURRENT_PAD_H=24' >> "$GITHUB_ENV"
           fi
           if [[ "$START" > '2022-11-01T00:00:00Z' ]]; then
             echo 'WAVE_DS=cmems_mod_glo_wav_anfc_0.083deg_PT3H-i' >> "$GITHUB_ENV"
@@ -77,9 +82,6 @@ jobs:
           from datetime import datetime,timedelta
           s=datetime.fromisoformat('${{ inputs.start_utc }}'.replace('Z','+00:00'))
           e=datetime.fromisoformat('${{ inputs.end_utc }}'.replace('Z','+00:00'))
-          cp=int('${{ env.CURRENT_PAD_H }}' or '6') if False else None
-          # GitHub env written in this same shell step is not yet visible to Python,
-          # so infer current padding from the requested date using the same threshold.
           cpad=6 if s.isoformat().replace('+00:00','Z') > '2022-06-01T00:00:00Z' else 24
           def z(d): return d.isoformat().replace('+00:00','Z')
           print('CURRENT_START='+z(s-timedelta(hours=cpad)))
@@ -90,30 +92,54 @@ jobs:
           print('REG_END='+z(e+timedelta(hours=1)))
           PY
 
-      - name: Download global 3D currents
+      - name: Download global 3D currents with bounded retry
+        shell: bash
         run: |
           mkdir -p data publish
-          copernicusmarine subset -i "$CURRENT_DS" -v uo -v vo \
-            -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" \
-            -z 0 -Z '${{ inputs.draft_m }}' -t "$CURRENT_START" -T "$CURRENT_END" \
-            -f data/global.nc --overwrite
+          for attempt in 1 2; do
+            echo "CMEMS current attempt $attempt/2"
+            if timeout --signal=INT 90s copernicusmarine subset -i "$CURRENT_DS" -v uo -v vo \
+              -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" \
+              -z 0 -Z '${{ inputs.draft_m }}' -t "$CURRENT_START" -T "$CURRENT_END" \
+              -f data/global.nc --overwrite; then
+              test -s data/global.nc && break
+            fi
+            rm -f data/global.nc
+            if [ "$attempt" -eq 2 ]; then
+              echo '::error::Copernicus current download/authentication failed after two bounded attempts.'
+              exit 1
+            fi
+            sleep 4
+          done
 
-      - name: Download global Stokes drift
+      - name: Download global Stokes drift with bounded retry
+        shell: bash
         run: |
-          copernicusmarine subset -i "$WAVE_DS" -v VSDX -v VSDY \
-            -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" \
-            -t "$WAVE_START" -T "$WAVE_END" \
-            -f data/stokes.nc --overwrite
+          for attempt in 1 2; do
+            echo "CMEMS Stokes attempt $attempt/2"
+            if timeout --signal=INT 90s copernicusmarine subset -i "$WAVE_DS" -v VSDX -v VSDY \
+              -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" \
+              -t "$WAVE_START" -T "$WAVE_END" \
+              -f data/stokes.nc --overwrite; then
+              test -s data/stokes.nc && break
+            fi
+            rm -f data/stokes.nc
+            if [ "$attempt" -eq 2 ]; then
+              echo '::error::Copernicus Stokes download/authentication failed after two bounded attempts.'
+              exit 1
+            fi
+            sleep 4
+          done
 
       - name: Try Black Sea regional current enhancement
         if: env.IS_BLACKSEA == '1'
         shell: bash
         run: |
           set +e
-          copernicusmarine subset -i cmems_mod_blk_phy-cur_anfc_2.5km_PT1H-m -v uo -v vo \
+          timeout --signal=INT 75s copernicusmarine subset -i cmems_mod_blk_phy-cur_anfc_2.5km_PT1H-m -v uo -v vo \
             -x "$MIN_LON" -X "$MAX_LON" -y "$MIN_LAT" -Y "$MAX_LAT" -z 0 -Z "$REG_Z" \
             -t "$REG_START" -T "$REG_END" -f data/regional.nc --overwrite
-          if [ $? -ne 0 ]; then rm -f data/regional.nc; fi
+          if [ $? -ne 0 ] || [ ! -s data/regional.nc ]; then rm -f data/regional.nc; fi
           exit 0
 
       - name: Build compact pack
