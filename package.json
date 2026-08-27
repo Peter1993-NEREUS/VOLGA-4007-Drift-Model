@@ -8,8 +8,9 @@
   "private": true,
   "scripts": {
     "start:win": "electron .",
-    "check:desktop": "node --check desktop/main.js && node --check desktop/preload.js && node --check app/src/main/assets/v171.js",
-    "dist:win": "electron-builder --win portable --x64"
+    "check:desktop": "node --check desktop/main.js && node --check desktop/preload.js && node --check app/src/main/assets/v171.js && node --check app/src/main/assets/v175.js && node --check app/src/main/assets/v176.js",
+    "dist:win": "electron-builder --win nsis --x64",
+    "dist:win:portable": "electron-builder --win portable --x64"
   },
   "devDependencies": {
     "electron": "44.0.0",
@@ -19,7 +20,7 @@
     "appId": "com.nereus.marinedrift",
     "productName": "Marine Drift Model by NEREUS",
     "asar": true,
-    "compression": "maximum",
+    "compression": "normal",
     "files": [
       "desktop/**/*",
       "app/src/main/assets/**/*",
@@ -28,12 +29,21 @@
     "win": {
       "target": [
         {
-          "target": "portable",
+          "target": "nsis",
           "arch": ["x64"]
         }
       ],
-      "artifactName": "Marine-Drift-Model-by-NEREUS-v${version}-Windows-${arch}.${ext}",
+      "artifactName": "Marine-Drift-Model-by-NEREUS-v${version}-Windows-Setup-${arch}.${ext}",
       "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Marine Drift Model by NEREUS",
+      "deleteAppDataOnUninstall": false
     }
   }
 }
