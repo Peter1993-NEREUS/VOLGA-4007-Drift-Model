@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.Build;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.provider.Settings;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -48,6 +49,7 @@ public class MainActivity extends Activity {
     private static final int NOTIFICATION_PERMISSION=912;
     private static final int CMEMS_NOTIFICATION_ID=4101;
     private static final int VESSEL_NOTIFICATION_ID=4102;
+    private static final int TEST_NOTIFICATION_ID=4199;
     private static final String CMEMS_CHANNEL="cmems_updates";
     private static final String ASSET_HOST="appassets.androidplatform.net";
     private static final String PREFS="marine_drift_private";
@@ -90,7 +92,7 @@ public class MainActivity extends Activity {
             }
             @Override public void onPageFinished(WebView view,String url){
                 super.onPageFinished(view,url);
-                String js="(function(){var a=['v141.js','v150.js','v151.js','v152.js','v160.js','v161.js','v162.js','v163.js','v164.js','v165.js','v166.js','v167.js','v168.js','v169.js','v170.js'];function n(i){if(i>=a.length)return;var id='enh'+i;if(document.getElementById(id)){n(i+1);return;}var s=document.createElement('script');s.id=id;s.src=a[i];s.onload=function(){n(i+1)};document.body.appendChild(s);}n(0);})();";
+                String js="(function(){var a=['v141.js','v150.js','v151.js','v152.js','v160.js','v161.js','v162.js','v163.js','v164.js','v165.js','v166.js','v167.js','v168.js','v169.js','v170.js','v171.js'];function n(i){if(i>=a.length)return;var id='enh'+i;if(document.getElementById(id)){n(i+1);return;}var s=document.createElement('script');s.id=id;s.src=a[i];s.onload=function(){n(i+1)};document.body.appendChild(s);}n(0);})();";
                 view.evaluateJavascript(js,null);
             }
         });
@@ -113,7 +115,7 @@ public class MainActivity extends Activity {
     private void createNotificationChannel(){
         if(Build.VERSION.SDK_INT>=26){
             NotificationChannel ch=new NotificationChannel(CMEMS_CHANNEL,"Marine Drift Model updates",NotificationManager.IMPORTANCE_DEFAULT);
-            ch.setDescription("CMEMS data and vessel lookup status");
+            ch.setDescription("CMEMS data, vessel lookup and system check status");
             NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
             if(nm!=null)nm.createNotificationChannel(ch);
         }
@@ -128,6 +130,18 @@ public class MainActivity extends Activity {
     private boolean notificationAllowed(){
         if(Build.VERSION.SDK_INT<33)return true;
         return checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED;
+    }
+
+    private String notificationStatus(){
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return "permission_required";
+        NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+        if(nm==null)return "unknown";
+        if(!nm.areNotificationsEnabled())return "blocked";
+        if(Build.VERSION.SDK_INT>=26){
+            NotificationChannel ch=nm.getNotificationChannel(CMEMS_CHANNEL);
+            if(ch!=null && ch.getImportance()==NotificationManager.IMPORTANCE_NONE)return "channel_blocked";
+        }
+        return "allowed";
     }
 
     private void showModelNotification(int id,String state,String text,String progressTitle,String successTitle,String errorTitle){
@@ -163,6 +177,9 @@ public class MainActivity extends Activity {
     private void showVesselNotification(String state,String text){
         showModelNotification(VESSEL_NOTIFICATION_ID,state,text,"Vessel lookup","Vessel data ready","Vessel lookup failed");
     }
+    private void showTestNotification(){
+        showModelNotification(TEST_NOTIFICATION_ID,"success","Native notification bridge is working.","System check","Marine Drift Model • test notification","System check failed");
+    }
 
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){
         super.onRequestPermissionsResult(requestCode,permissions,grantResults);
@@ -175,6 +192,25 @@ public class MainActivity extends Activity {
             pendingNotificationText=null;
             if(id==CMEMS_NOTIFICATION_ID)showCmemsNotification(state,text);
             else if(id==VESSEL_NOTIFICATION_ID)showVesselNotification(state,text);
+            else if(id==TEST_NOTIFICATION_ID)showTestNotification();
+        }
+        if(web!=null)web.evaluateJavascript("window.dispatchEvent(new Event('focus'));",null);
+    }
+
+    private void openNotificationSettings(){
+        try{
+            Intent i;
+            if(Build.VERSION.SDK_INT>=26){
+                i=new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);
+                i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());
+                i.putExtra(Settings.EXTRA_CHANNEL_ID,CMEMS_CHANNEL);
+            }else{
+                i=new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());
+            }
+            startActivity(i);
+        }catch(Exception ignored){
+            try{Intent i=new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()));startActivity(i);}catch(Exception ignored2){}
         }
     }
 
@@ -205,6 +241,9 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void printPdf() { runOnUiThread(() -> printReport()); }
         @JavascriptInterface public void notifyCmems(String state,String text) { runOnUiThread(() -> showCmemsNotification(state,text)); }
         @JavascriptInterface public void notifyVessel(String state,String text) { runOnUiThread(() -> showVesselNotification(state,text)); }
+        @JavascriptInterface public String getNotificationStatus() { return notificationStatus(); }
+        @JavascriptInterface public void sendTestNotification() { runOnUiThread(() -> showTestNotification()); }
+        @JavascriptInterface public void openNotificationSettings() { runOnUiThread(() -> MainActivity.this.openNotificationSettings()); }
         @JavascriptInterface public void setClipboardText(String text) { runOnUiThread(() -> { try{ClipboardManager cm=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);if(cm!=null)cm.setPrimaryClip(ClipData.newPlainText("Marine Drift Model",text==null?"":text));}catch(Exception ignored){} }); }
         @JavascriptInterface public void saveText(String filename,String text) { pendingBytes=text.getBytes(StandardCharsets.UTF_8); pendingMime="text/csv"; launchCreate(filename,pendingMime); }
         @JavascriptInterface public void saveBase64(String filename,String mime,String data) { int c=data.indexOf(','); String raw=c>=0?data.substring(c+1):data; pendingBytes=Base64.decode(raw,Base64.DEFAULT); pendingMime=mime; launchCreate(filename,mime); }
