@@ -59,10 +59,18 @@ def vessel_finder(imo):
       "name":name,"imo":imo,"type":row("Ship Type","Vessel Type"),"flag":row("Flag"),
       "year":int(plausible(number(row("Year of Build","Built")),1800,2100) or 0),
       "loa":plausible(number(row("Length Overall (m)","Length Overall","LOA")),20,500),
+      "lpp":plausible(number(row("Length BP (m)","Length BP","Length Between Perpendiculars (m)","Length Between Perpendiculars","LPP","LBP")),20,500),
       "beam":plausible(number(row("Beam (m)","Beam")),3,100),
-      "referenceDraft":plausible(number(row("Draught (m)","Draft (m)","Draught","Draft")),0.5,30),
+      "depth":plausible(number(row("Moulded Depth (m)","Moulded Depth","Depth (m)","Depth")),1,60),
+      "referenceDraft":plausible(number(row("Draught (m)","Draft (m)","Draught","Draft","Summer Draught (m)","Summer Draft (m)")),0.5,30),
+      "airDraft":plausible(number(row("Air Draught (m)","Air Draft (m)","Air Draught","Air Draft")),2,100),
+      "displacement":plausible(number(row("Displacement (t)","Displacement (mt)","Displacement")),100,1000000),
       "gt":plausible(number(row("Gross Tonnage","GT")),100,600000),
+      "netTonnage":plausible(number(row("Net Tonnage","NT")),10,400000),
       "dwt":plausible(number(row("Deadweight (t)","Deadweight","DWT")),100,700000),
+      "teu":plausible(number(row("TEU","Container Capacity (TEU)")),1,30000),
+      "grainCapacity":plausible(number(row("Grain (m3)","Grain (m³)","Grain Capacity (m3)","Grain Capacity")),1,600000),
+      "ballastCapacity":plausible(number(row("Ballast Water (m3)","Ballast Water (m³)","Ballast Capacity (m3)","Ballast Capacity")),1,600000),
       "mmsi":mmsi,"callsign":callsign,"source":"VesselFinder public particulars","sourceUrl":url,
     }
     if not data["name"] or norm_name(data["name"]) in {"VESSELFINDER","DETAILSANDCURRENTPOSITION"}:raise RuntimeError("VesselFinder particulars could not be parsed")
@@ -89,14 +97,14 @@ def merge(primary,fallback):
     if not primary:return fallback or {}
     if not fallback:return primary
     out=dict(primary)
-    for k in ["loa","beam","referenceDraft","gt","dwt","mmsi","callsign","flag","type","year"]:
+    for k in ["loa","lpp","beam","depth","referenceDraft","airDraft","displacement","gt","netTonnage","dwt","teu","grainCapacity","ballastCapacity","mmsi","callsign","flag","type","year"]:
         if not out.get(k) and fallback.get(k):out[k]=fallback[k]
     if primary.get("name") and fallback.get("name") and norm_name(primary["name"])!=norm_name(fallback["name"]):out["alternateName"]=fallback["name"];out["nameConflict"]=True
     out["sources"]=[primary.get("source"),fallback.get("source")];return out
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument("--imo",required=True);ap.add_argument("--request-id",required=True);ap.add_argument("--out",required=True);a=ap.parse_args();imo=re.sub(r"\D","",a.imo)
-    result={"requestId":a.request_id,"imo":imo,"status":"error","generatedUtc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())}
+    result={"requestId":a.request_id,"imo":imo,"status":"error","generatedUtc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"geometrySchema":2}
     if not valid_imo(imo):result["message"]="Invalid IMO checksum"
     else:
         vf=wd=None;errs=[]
