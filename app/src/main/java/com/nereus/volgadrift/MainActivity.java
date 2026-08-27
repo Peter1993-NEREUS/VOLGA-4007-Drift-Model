@@ -9,6 +9,7 @@ import android.app.PendingIntent;
 import android.os.Bundle;
 import android.os.Build;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -91,6 +92,18 @@ public class MainActivity extends Activity {
         });
         web.addJavascriptInterface(new Bridge(), "Android");
         web.loadUrl("https://"+ASSET_HOST+"/assets/index.html");
+    }
+
+    @Override public void onConfigurationChanged(Configuration newConfig){
+        super.onConfigurationChanged(newConfig);
+        if(root!=null){
+            root.requestLayout();
+            root.requestApplyInsets();
+        }
+        if(web!=null){
+            web.requestLayout();
+            web.invalidate();
+        }
     }
 
     private void createNotificationChannel(){
