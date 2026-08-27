@@ -39,7 +39,7 @@
     let tk=token();if(!tk){$p('connectionDetails').open=true;return toast('Connection token is required for vessel lookup',true)}
     const rid=`vessel-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,btn=$p('lookupImo'),st=$p('lookupStatus');btn.disabled=true;st.textContent='Searching current public particulars by IMO…';
     try{
-      let body={ref:'main',inputs:{request_id:rid,imo}},r=await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/vessel-lookup.yml/dispatches`,{method:'POST',headers:{Authorization:`Bearer ${tk}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},body:JSON.stringify(body)});
+      let body={ref:'pending-test-fixes',inputs:{request_id:rid,imo}},r=await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/vessel-lookup.yml/dispatches`,{method:'POST',headers:{Authorization:`Bearer ${tk}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},body:JSON.stringify(body)});
       if(r.status!==204)throw Error(`Vessel lookup request failed HTTP ${r.status}`);
       for(let n=0;n<45;n++){
         try{
