@@ -23,8 +23,8 @@
     const h=Math.max(draft+.75,beam>0?beam*typeHeightRatio():draft+4);
     return {height:h,estimated:true};
   }
-  // ShipDrift/OpenDrift-style drag approximations. AUTO models direct windage only;
-  // CMEMS Stokes remains a separate vector in the route engine.
+  // Direct windage component, adapted from the deterministic ship-force approach used by OpenDrift ShipDrift.
+  // Stokes drift remains a separate CMEMS vector in this application to avoid double counting wave-induced transport.
   function windCd(exposed){
     exposed=Math.max(0,Number(exposed)||0);
     if(exposed>37.2)return 1.4;
@@ -48,26 +48,34 @@
     fraction=clamp(fraction,.001,LEEWAY_MAX);
     return {ok:true,fraction,height:eh.height,heightEstimated:eh.estimated,exposed,cf,cd,areaDry,areaWet,low:fraction*.65,high:Math.min(LEEWAY_MAX,fraction*1.35)};
   }
+  function currentSignature(){
+    let p=startPoint(),startMs=NaN;try{startMs=requestedRange()[0]}catch(_){startMs=utcMs(S.meta?.startUtc)}
+    const eh=effectiveHeight();
+    return {start:p?{lat:p.lat,lon:p.lon,ms:startMs}:null,draft:Number($l('draft')?.value||0),loa:Number($l('loa')?.value||0),beam:Number($l('beam')?.value||0),height:eh.height,windMode:$l('windMode')?.value||'off',windSpeed:Number($l('windSpeed')?.value||0),windDir:Number($l('windDir')?.value||0),windLoadedUtc:S.windOnline?.loadedUtc||''};
+  }
+  function calibrationValid(){
+    const c=S.leewayCalibration,s=currentSignature(),b=c?.basis;if(!c||!b||!s.start||!b.start)return false;
+    const posErr=bd(s.start,b.start)[1]/1852;
+    return posErr<=.05&&Math.abs(Number(s.start.ms)-Number(b.start.ms))<=60000&&Math.abs(s.draft-b.draft)<=.05&&Math.abs(s.loa-b.loa)<=.15&&Math.abs(s.beam-b.beam)<=.15&&Math.abs(s.height-b.height)<=.15&&s.windMode===b.windMode&&Math.abs(s.windSpeed-b.windSpeed)<=.05&&Math.abs(s.windDir-b.windDir)<=.5&&String(s.windLoadedUtc||'')===String(b.windLoadedUtc||'');
+  }
   function effectiveFraction(){
     if(Number.isFinite(Number(S._leewayFractionOverride)))return clamp(Number(S._leewayFractionOverride),0,LEEWAY_MAX);
     const m=mode();
     if(m==='off')return 0;
-    if(m==='calibrated'&&Number.isFinite(Number(S.leewayCalibration?.fraction)))return clamp(Number(S.leewayCalibration.fraction),0,LEEWAY_MAX);
-    if(m==='auto'){const a=autoEstimate();return a.ok?a.fraction:Math.max(0,Number($l('leeway')?.value||0))/100}
+    if(m==='calibrated'&&calibrationValid())return clamp(Number(S.leewayCalibration.fraction),0,LEEWAY_MAX);
+    if(m==='auto'||m==='calibrated'){const a=autoEstimate();return a.ok?a.fraction:Math.max(0,Number($l('leeway')?.value||0))/100}
     return Math.max(0,Number($l('leeway')?.value||0))/100;
   }
   function effectiveAngle(){
     if(Number.isFinite(Number(S._leewayAngleOverride)))return Number(S._leewayAngleOverride);
-    return mode()==='calibrated'&&Number.isFinite(Number(S.leewayCalibration?.angleDeg))?Number(S.leewayCalibration.angleDeg):0;
+    return mode()==='calibrated'&&calibrationValid()&&Number.isFinite(Number(S.leewayCalibration?.angleDeg))?Number(S.leewayCalibration.angleDeg):0;
   }
+  function modelName(){return mode()==='calibrated'&&!calibrationValid()?'AUTO FALLBACK':mode().toUpperCase()}
 
-  // Patch the core coefficient without changing CMEMS/Stokes logic.
   if(typeof leewayFraction==='function'&&!leewayFraction.__auto172){
     leewayFraction=function(){return effectiveFraction()};
     leewayFraction.__auto172=true;
   }
-  // v160 already supplies raw 10m wind speed/direction for embedded/manual/weather modes.
-  // Recompose the windage vector here so calibrated divergence can be applied safely.
   if(typeof wind==='function'&&!wind.__auto172){
     const prevWind=wind;
     wind=function(ms,kMul=1){
@@ -86,9 +94,8 @@
   }
   function computeVariant(lat,lon,kMul=1,stokesMul=1,angle=null){
     if(angle===null||angle===undefined)return compute(lat,lon,kMul,stokesMul);
-    return withLeeway(effectiveFraction(),angle,()=>compute(lat,lon,kMul,stokesMul));
+    const k=effectiveFraction();return withLeeway(k,angle,()=>compute(lat,lon,kMul,stokesMul));
   }
-
   function simulateTo(endMs,k,angle){
     const p=startPoint();if(!p)throw Error('Set START coordinates first');
     const start=utcMs(S.meta?.startUtc),limit=Math.min(Number(endMs),utcMs(S.meta?.endUtc)),dt=15*60000;
@@ -130,13 +137,13 @@
           if(++count%35===0)await yieldUi();
         }
       }
-      S.leewayCalibration={fraction:best.k,angleDeg:best.angle,errorNm:best.err,observed:{lat:obs.lat,lon:obs.lon,ms:obsMs},predicted:{lat:best.pred.lat,lon:best.pred.lon},createdUtc:new Date().toISOString()};
+      S.leewayCalibration={fraction:best.k,angleDeg:best.angle,errorNm:best.err,observed:{lat:obs.lat,lon:obs.lon,ms:obsMs},predicted:{lat:best.pred.lat,lon:best.pred.lon},basis:currentSignature(),createdUtc:new Date().toISOString()};
       $l('leewayMode').value='calibrated';
       updateUi();clearResults();refreshPreflight?.();
       out.textContent=`CALIBRATED • ${(best.k*100).toFixed(2)}% • ${best.angle>=0?'+':''}${best.angle.toFixed(0)}° crosswind • fit ${best.err.toFixed(2)} NM`;
       toast(`Leeway calibrated: ${(best.k*100).toFixed(2)}% • fit ${best.err.toFixed(2)} NM`);
       setTimeout(()=>calculate(),60);
-    }catch(e){out.textContent='CALIBRATION FAILED • '+e.message;toast(e.message,true)}finally{btn.disabled=false}
+    }catch(e){out.textContent='CALIBRATION FAILED • '+e.message;toast(e.message,true)}finally{if(btn)btn.disabled=false}
   }
 
   function syncLeewayField(){
@@ -148,13 +155,14 @@
   function updateUi(){
     const box=$l('leewayModelReadout');if(!box)return;
     syncLeewayField();
-    const m=mode(),f=effectiveFraction(),ang=effectiveAngle(),a=autoEstimate();
+    const m=mode(),f=effectiveFraction(),ang=effectiveAngle(),a=autoEstimate(),calOk=calibrationValid();
     if(m==='off')box.innerHTML='<b>OFF</b> • direct wind leeway disabled. ROUTE uses CURRENT + STOKES.';
     else if(m==='manual')box.innerHTML=`<b>MANUAL ${(f*100).toFixed(2)}%</b> • direct wind drift ${(f*100).toFixed(2)}% of 10 m wind speed.`;
-    else if(m==='calibrated'&&S.leewayCalibration){const c=S.leewayCalibration;box.innerHTML=`<b>CALIBRATED ${(f*100).toFixed(2)}%</b> • divergence ${ang>=0?'+':''}${ang.toFixed(0)}° • fit error ${Number(c.errorNm).toFixed(2)} NM.<br><small>Based on known position ${Number(c.observed?.lat).toFixed(5)}, ${Number(c.observed?.lon).toFixed(5)} at ${localFmt(c.observed?.ms)}.</small>`}
+    else if(m==='calibrated'&&calOk){const c=S.leewayCalibration;box.innerHTML=`<b>CALIBRATED ${(f*100).toFixed(2)}%</b> • divergence ${ang>=0?'+':''}${ang.toFixed(0)}° • fit error ${Number(c.errorNm).toFixed(2)} NM.<br><small>Known position ${Number(c.observed?.lat).toFixed(5)}, ${Number(c.observed?.lon).toFixed(5)} at ${localFmt(c.observed?.ms)}.</small>`}
+    else if(m==='calibrated'&&!calOk&&a.ok)box.innerHTML=`<b>CALIBRATION STALE • AUTO FALLBACK ${(a.fraction*100).toFixed(2)}%</b><br><small>START, time, vessel geometry or wind source changed. Re-calibrate before relying on the calibrated coefficient.</small>`;
     else if(a.ok)box.innerHTML=`<b>AUTO ${(a.fraction*100).toFixed(2)}%</b> • sensitivity ${(a.low*100).toFixed(2)}–${(a.high*100).toFixed(2)}% • effective height ${a.height.toFixed(1)} m${a.heightEstimated?' (ESTIMATED)':''}.<br><small>Exposed ${a.exposed.toFixed(1)} m • C<sub>air</sub> ${a.cf.toFixed(2)} • C<sub>water</sub> ${a.cd.toFixed(2)} • direct windage only; Stokes is added separately.</small>`;
     else box.innerHTML=`<b>AUTO unavailable</b> • ${a.reason}. Manual ${(f*100).toFixed(2)}% fallback is being used.`;
-    try{$l('leeway').dispatchEvent(new Event('input',{bubbles:false}))}catch(_){}
+    if(m!=='manual'){try{$l('leeway').dispatchEvent(new Event('input',{bubbles:false}))}catch(_){}}
   }
   function fillCalibrationDefaults(){
     try{
@@ -179,7 +187,7 @@
     const style=document.createElement('style');style.textContent=`.leewayModelBox{margin-top:8px;padding:9px;border:1px solid #cbdde5;border-radius:10px;background:#f7fbfd}.leewayTitle{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#17465f;font-size:9px}.leewayTitle span{font-size:7.5px;color:#607581}.leewayReadout{margin-top:7px;padding:7px;border-radius:8px;background:#eef6f9;border:1px solid #d8e7ed;color:#355464;font-size:9.5px;line-height:1.45}.leewayReadout b{color:#0b4266}.leewayReadout small{color:#607581}.leewayCal button{margin-top:7px}@media(pointer:coarse){#leewayMode,#leewayHeight,#calPair,#calDate,#calTime,#calibrateLeeway{min-height:44px}}`;document.head.appendChild(style);
     $l('leewayMode').addEventListener('change',()=>{if($l('leewayMode').value==='calibrated'&&!S.leewayCalibration){toast('No calibration yet — enter a known position and press CALIBRATE',true);$l('leewayMode').value='auto'}updateUi();clearResults();refreshPreflight?.()});
     $l('leewayHeight').addEventListener('change',()=>{updateUi();clearResults();refreshPreflight?.()});
-    ['loa','beam','draft','shipType','cargo','dwt'].forEach(id=>$l(id)?.addEventListener('change',()=>{if(mode()==='auto'){updateUi();clearResults();refreshPreflight?.()}}));
+    ['loa','beam','draft','shipType','cargo','dwt','windMode','windSpeed','windDir'].forEach(id=>$l(id)?.addEventListener('change',()=>{if(mode()==='auto'||mode()==='calibrated'){updateUi();clearResults();refreshPreflight?.()}}));
     lee.addEventListener('input',()=>{if(mode()==='manual')updateUi()});
     $l('calibrateLeeway').onclick=calibrate;
     $l('calPair').addEventListener('focus',fillCalibrationDefaults,{once:true});
@@ -191,14 +199,15 @@
     if(typeof setVessel==='function'&&!setVessel.__leeway172){const old=setVessel;setVessel=function(v){const r=old(v);S.leewayCalibration=v?.leewayCalibration||null;if($l('leewayMode'))$l('leewayMode').value=v?.leewayMode||'manual';if($l('leewayHeight'))$l('leewayHeight').value=Number(v?.leewayHeight)>0?Number(v.leewayHeight).toFixed(1):'';updateUi();return r};setVessel.__leeway172=true}
   }
   function patchResults(){
-    if(typeof results==='function'&&!results.__leeway172){const old=results;results=function(){const r=old();if(S.track?.length&&$l('engineStatus')){$l('engineStatus').textContent+=` • LEEWAY ${mode().toUpperCase()} ${(effectiveFraction()*100).toFixed(2)}%${effectiveAngle()?` @ ${effectiveAngle()>=0?'+':''}${effectiveAngle().toFixed(0)}°`:''}`}return r};results.__leeway172=true}
+    if(typeof results==='function'&&!results.__leeway172){const old=results;results=function(){const r=old();if(S.track?.length&&$l('engineStatus')){$l('engineStatus').textContent+=` • LEEWAY ${modelName()} ${(effectiveFraction()*100).toFixed(2)}%${effectiveAngle()?` @ ${effectiveAngle()>=0?'+':''}${effectiveAngle().toFixed(0)}°`:''}`}return r};results.__leeway172=true}
   }
   function patchCalculateEnvelope(){
     if(typeof calculate==='function'&&!calculate.__leeway172){const old=calculate;calculate=function(silent=false){const r=old(silent);try{if(S.track?.length&&mode()!=='off'&&$l('windMode')?.value!=='off'){const p=startPoint(),a=effectiveAngle();S.alts.push(computeVariant(p.lat,p.lon,1,1,a-20));S.alts.push(computeVariant(p.lat,p.lon,1,1,a+20));results();fitRoute();selectTime(S.selected,false);table();report();drawAll();updateUi()}}catch(e){if(!silent)toast('Directional leeway sensitivity: '+e.message,true)}return r};calculate.__leeway172=true}
   }
-  function patchResetVisibility(){
-    document.addEventListener('change',e=>{if(['windMode','startDate','startTime','endDate','endTime','offset'].includes(e.target?.id))setTimeout(updateUi,0)},true);
+  function patchStateVisibility(){
+    document.addEventListener('change',e=>{if(['pair','startDate','startTime','endDate','endTime','offset'].includes(e.target?.id))setTimeout(updateUi,0)},true);
+    if(typeof setStart==='function'&&!setStart.__leeway172){const old=setStart;setStart=function(...a){const r=old.apply(this,a);setTimeout(updateUi,0);return r};setStart.__leeway172=true}
   }
-  function boot(){try{installUi();patchPresets();patchResults();patchCalculateEnvelope();patchResetVisibility();updateUi()}catch(e){console.error('Leeway v172 boot',e)}}
+  function boot(){try{installUi();patchPresets();patchResults();patchCalculateEnvelope();patchStateVisibility();updateUi()}catch(e){console.error('Leeway v172 boot',e)}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1250));else setTimeout(boot,1250);
 })();
