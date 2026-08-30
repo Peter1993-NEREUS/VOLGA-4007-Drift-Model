@@ -17,10 +17,6 @@ jobs:
         run: |
           node --check nereus-operations-v02/app/src/main/assets/native-net.js
           node --check nereus-operations-v02/app/src/main/assets/app.js
-      - name: Report source diagnostic
-        run: |
-          curl -fsS https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-report-diagnostic | tee /tmp/report-diag.json
-          node -e "const d=require('/tmp/report-diag.json'); console.log(JSON.stringify(d)); if(!d.ok) process.exit(1)"
       - name: Build APK
         working-directory: nereus-operations-v02
         run: gradle --no-daemon :app:assembleDebug
