@@ -18,10 +18,15 @@ jobs:
       - name: Build APK
         working-directory: nereus-operations-v02
         run: gradle --no-daemon :app:assembleDebug
+      - name: Verify APK
+        run: |
+          APK=nereus-operations-v02/app/build/outputs/apk/debug/app-debug.apk
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose "$APK"
       - name: Rename APK
-        run: cp nereus-operations-v02/app/build/outputs/apk/debug/app-debug.apk NEREUS-Operations-v0.2.0-live-test.apk
+        run: cp nereus-operations-v02/app/build/outputs/apk/debug/app-debug.apk NEREUS-Operations-v0.3.0.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: NEREUS-Operations-v0.2.0-live-test-APK
-          path: NEREUS-Operations-v0.2.0-live-test.apk
+          name: NEREUS-Operations-v0.3.0-APK
+          path: NEREUS-Operations-v0.3.0.apk
           retention-days: 30
