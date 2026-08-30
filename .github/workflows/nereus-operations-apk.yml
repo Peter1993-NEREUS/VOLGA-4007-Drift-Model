@@ -26,7 +26,12 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extract Android project
-        run: unzip -q nereus-operations-android-src.zip
+        run: |
+          rc=0
+          unzip -oq nereus-operations-android-src.zip || rc=$?
+          if [ "$rc" -gt 1 ]; then exit "$rc"; fi
+          test -f nereus-operations-android/settings.gradle
+          test -f nereus-operations-android/app/src/main/assets/app.js
 
       - name: Validate web assets
         working-directory: nereus-operations-android
