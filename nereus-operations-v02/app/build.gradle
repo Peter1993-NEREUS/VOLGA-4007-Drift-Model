@@ -1,5 +1,26 @@
-plugins { id 'com.android.application' }
-android { namespace 'com.nereus.operations'; compileSdk 35
- defaultConfig { applicationId 'com.nereus.operations'; minSdk 24; targetSdk 35; versionCode 2; versionName '0.2.0-test' }
- buildTypes { debug { applicationIdSuffix '.test'; versionNameSuffix '-debug' } release { minifyEnabled false } }
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.nereus.operations'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.nereus.operations'
+        minSdk 24
+        targetSdk 35
+        versionCode 2
+        versionName '0.2.0-test'
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.test'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled false
+        }
+    }
 }
