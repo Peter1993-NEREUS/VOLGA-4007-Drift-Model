@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -17,12 +18,28 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import javax.net.ssl.HttpsURLConnection;
 
 public class MainActivity extends Activity {
-    private WebView webView;
+    private static final String API_URL = "https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-api";
+    private static final String API_KEY = "sb_publishable_tEjG1IsI7MHVtQf1GGNK0w_yXcxZ8Vd";
 
-    @SuppressLint("SetJavaScriptEnabled")
+    private WebView webView;
+    private final ExecutorService networkExecutor = Executors.newSingleThreadExecutor();
+
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -80,6 +97,8 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
+        webView.addJavascriptInterface(new NativeNetworkBridge(), "NereusNative");
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -110,6 +129,78 @@ public class MainActivity extends Activity {
         webView.loadUrl("https://app.local/index.html");
     }
 
+    private final class NativeNetworkBridge {
+        @JavascriptInterface
+        public void post(String requestId, String bodyJson) {
+            if (requestId == null || requestId.length() > 100) return;
+            final String safeBody = bodyJson == null ? "{}" : bodyJson;
+            networkExecutor.execute(() -> performPost(requestId, safeBody));
+        }
+    }
+
+    private void performPost(String requestId, String bodyJson) {
+        HttpsURLConnection connection = null;
+        try {
+            URL url = new URL(API_URL);
+            connection = (HttpsURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(30000);
+            connection.setDoOutput(true);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("apikey", API_KEY);
+            connection.setRequestProperty("User-Agent", "NEREUS-Operations-Android/0.3.2");
+
+            try {
+                JSONObject body = new JSONObject(bodyJson);
+                String accessToken = body.optString("access_token", "");
+                if (!accessToken.isEmpty()) {
+                    connection.setRequestProperty("Authorization", "Bearer " + accessToken);
+                }
+            } catch (Exception ignored) {
+            }
+
+            byte[] bytes = bodyJson.getBytes(StandardCharsets.UTF_8);
+            connection.setFixedLengthStreamingMode(bytes.length);
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(bytes);
+                output.flush();
+            }
+
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 200 && status < 400
+                    ? connection.getInputStream()
+                    : connection.getErrorStream();
+            String response = readAll(stream);
+            deliverNativeResult(requestId, status, response == null || response.isEmpty() ? "{}" : response, null);
+        } catch (Exception e) {
+            deliverNativeResult(requestId, 0, "", e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()));
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private String readAll(InputStream stream) throws IOException {
+        if (stream == null) return "";
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) builder.append(line);
+        }
+        return builder.toString();
+    }
+
+    private void deliverNativeResult(String requestId, int status, String response, String error) {
+        if (webView == null) return;
+        final String script = "window.__nereusNativeResolve(" +
+                JSONObject.quote(requestId) + "," + status + "," +
+                JSONObject.quote(response == null ? "" : response) + "," +
+                (error == null ? "null" : JSONObject.quote(error)) + ");";
+        webView.post(() -> webView.evaluateJavascript(script, null));
+    }
+
     private String mime(String path) {
         if (path.endsWith(".html")) return "text/html";
         if (path.endsWith(".js")) return "application/javascript";
@@ -117,7 +208,19 @@ public class MainActivity extends Activity {
         if (path.endsWith(".json")) return "application/json";
         if (path.endsWith(".png")) return "image/png";
         if (path.endsWith(".svg")) return "image/svg+xml";
+        if (path.endsWith(".xml")) return "application/xml";
         return "application/octet-stream";
+    }
+
+    @Override
+    protected void onDestroy() {
+        networkExecutor.shutdownNow();
+        if (webView != null) {
+            webView.removeJavascriptInterface("NereusNative");
+            webView.destroy();
+            webView = null;
+        }
+        super.onDestroy();
     }
 
     @Override
