@@ -15,6 +15,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 
 import java.io.IOException;
 
@@ -25,20 +26,51 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         getWindow().setStatusBarColor(Color.rgb(7, 19, 31));
         getWindow().setNavigationBarColor(Color.rgb(7, 19, 31));
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+
+        FrameLayout root = new FrameLayout(this);
+        root.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        root.setBackgroundColor(Color.rgb(7, 19, 31));
 
         webView = new WebView(this);
-        webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
+        webView.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
         webView.setBackgroundColor(Color.rgb(7, 19, 31));
-        webView.setOnApplyWindowInsetsListener((View v, WindowInsets i) -> {
-            if (Build.VERSION.SDK_INT >= 30) {
-                android.graphics.Insets x = i.getInsets(WindowInsets.Type.systemBars());
-                v.setPadding(x.left, x.top, x.right, x.bottom);
+
+        root.setOnApplyWindowInsetsListener((View v, WindowInsets insets) -> {
+            int left;
+            int top;
+            int right;
+            int bottom;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets bars = insets.getInsets(
+                        WindowInsets.Type.statusBars()
+                                | WindowInsets.Type.navigationBars()
+                                | WindowInsets.Type.displayCutout());
+                left = bars.left;
+                top = bars.top;
+                right = bars.right;
+                bottom = bars.bottom;
             } else {
-                v.setPadding(i.getSystemWindowInsetLeft(), i.getSystemWindowInsetTop(), i.getSystemWindowInsetRight(), i.getSystemWindowInsetBottom());
+                left = insets.getSystemWindowInsetLeft();
+                top = insets.getSystemWindowInsetTop();
+                right = insets.getSystemWindowInsetRight();
+                bottom = insets.getSystemWindowInsetBottom();
             }
-            return i;
+
+            v.setPadding(left, top, right, bottom);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                return WindowInsets.CONSUMED;
+            }
+            return insets.consumeSystemWindowInsets();
         });
 
         WebSettings settings = webView.getSettings();
@@ -53,9 +85,11 @@ public class MainActivity extends Activity {
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 if (!"app.local".equals(uri.getHost())) return null;
+
                 String path = uri.getPath();
                 if (path == null || path.equals("/")) path = "/index.html";
                 path = path.substring(1);
+
                 try {
                     return new WebResourceResponse(mime(path), "UTF-8", getAssets().open(path));
                 } catch (IOException e) {
@@ -68,8 +102,11 @@ public class MainActivity extends Activity {
                 return !"app.local".equals(request.getUrl().getHost());
             }
         });
+
         webView.setWebChromeClient(new WebChromeClient());
-        setContentView(webView);
+        root.addView(webView);
+        setContentView(root);
+        root.requestApplyInsets();
         webView.loadUrl("https://app.local/index.html");
     }
 
@@ -85,7 +122,10 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
+        }
     }
 }
