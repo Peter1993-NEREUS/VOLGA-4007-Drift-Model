@@ -1,62 +1,27 @@
 name: Build NEREUS Operations APK
-
 on:
   push:
     branches: [ nereus-operations-apk-build ]
-
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle 8.9
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Extract Android project
-        run: |
-          rc=0
-          unzip -oq nereus-operations-android-src.zip || rc=$?
-          if [ "$rc" -gt 1 ]; then exit "$rc"; fi
-          test -f nereus-operations-android/settings.gradle
-          test -f nereus-operations-android/app/src/main/assets/app.js
-
-      - name: Validate web assets
-        working-directory: nereus-operations-android
-        run: |
-          node --check app/src/main/assets/app.js
-          python - <<'PY'
-          import json
-          p='app/src/main/assets/embedded_reports.json'
-          d=json.load(open(p,encoding='utf-8'))
-          assert d['mobile_brief']['ports']
-          assert any(x.get('days') for x in d['weather_report']['locations'])
-          print('Embedded reports OK')
-          PY
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - name: Validate JS
+        run: node --check nereus-operations-v02/app/src/main/assets/app.js
       - name: Build APK
-        working-directory: nereus-operations-android
+        working-directory: nereus-operations-v02
         run: gradle --no-daemon :app:assembleDebug
-
       - name: Rename APK
-        run: cp nereus-operations-android/app/build/outputs/apk/debug/app-debug.apk NEREUS-Operations-v0.1.0-test.apk
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+        run: cp nereus-operations-v02/app/build/outputs/apk/debug/app-debug.apk NEREUS-Operations-v0.2.0-live-test.apk
+      - uses: actions/upload-artifact@v4
         with:
-          name: NEREUS-Operations-v0.1.0-test-APK
-          path: NEREUS-Operations-v0.1.0-test.apk
-          if-no-files-found: error
+          name: NEREUS-Operations-v0.2.0-live-test-APK
+          path: NEREUS-Operations-v0.2.0-live-test.apk
           retention-days: 30
