@@ -1,0 +1,6 @@
+/* NEREUS Operations v0.3.5 · compact readable vessel timeline */
+.times{display:grid;grid-template-columns:1fr;gap:6px;margin-top:2px}
+.time{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:34px;padding:8px 10px;background:#0b2130;border-radius:9px}
+.time span{display:block;flex:0 0 auto;color:var(--m);font-size:9px;line-height:1.1;white-space:nowrap;letter-spacing:.02em}
+.time b{display:block;min-width:0;text-align:right;font-size:11px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
+@media(min-width:760px){.time{min-height:36px}.time b{font-size:12px}}
