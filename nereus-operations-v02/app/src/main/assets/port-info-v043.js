@@ -9,6 +9,8 @@ function field(label,value){if(value===undefined||value===null||String(value).tr
 function listField(label,value){const items=splitItems(value);if(!items.length)return'';return `<div class="pi-field pi-wide"><span>${esc(label)}</span><div class="pi-list">${items.map(x=>`<b>${esc(x)}</b>`).join('')}</div></div>`}
 function section(title,body){return body?`<div class="pi-section"><div class="pi-section-title">${esc(title)}</div><div class="pi-fields">${body}</div></div>`:''}
 function noticeFor(port,terminal){return (pi.data?.settings||[]).find(x=>x.port===port&&x.terminal===terminal)}
+function facilityLabel(x){return String(x?.facility_type||'').toUpperCase()==='SPM'?`SPM-${x.berth}`:`BERTH ${x.berth}`}
+function facilityPlural(rows){return rows.length&&rows.every(x=>String(x.facility_type||'').toUpperCase()==='SPM')?'SPMs':'BERTHS'}
 
 async function fetchPortInfo(force=false){
   if(pi.loading)return;
@@ -34,7 +36,7 @@ function compactCard(x){
   const loa=range(x.loa_min,x.loa_max,' m');
   const beam=x.beam_max?`max ${nfmt(x.beam_max)} m`:'';
   return `<button class="pi-card" data-pi-id="${esc(x.id)}">
-    <div class="pi-card-head"><div><small>${esc(x.terminal)}</small><h3>BERTH ${esc(x.berth)}</h3></div><span class="pi-side">${esc(x.berthing_side||'—')}</span></div>
+    <div class="pi-card-head"><div><small>${esc(x.terminal)}</small><h3>${esc(facilityLabel(x))}</h3></div><span class="pi-side">${esc(x.berthing_side||'—')}</span></div>
     <div class="pi-cargo">${esc(x.cargo||'—')}${x.data_status==='PRELIMINARY'?' · PRELIMINARY':''}</div>
     <div class="pi-kpis">
       ${dwt?`<div><small>DWT</small><b>${esc(dwt)}</b></div>`:''}
@@ -56,14 +58,14 @@ function detail(x){
     field('PARALLEL BODY LENGTH',x.parallel_body_min?`min ${nfmt(x.parallel_body_min)} m`:'')+
     field(x.draft_label||'DRAFT',x.draft_value)+field('FREEBOARD',x.freeboard_min);
   const berthing=field('BERTHING SIDE',x.berthing_side)+field('DEPTH ALONGSIDE',x.depth_alongside)+field('BALLAST DISCHARGE',x.ballast_discharge);
-  const manifold=field('MANIFOLD POSITION',x.manifold_position)+field('PARALLEL BODY AFT → MID-POINT MANIFOLD',x.parallel_body_aft_min?`min ${x.parallel_body_aft_min}`:'')+field('PARALLEL BODY FORE → MID-POINT MANIFOLD',x.parallel_body_fore_min?`min ${x.parallel_body_fore_min}`:'')+field('MANIFOLD CENTRES',x.manifold_centres_min)+field("SHIP'S RAIL → MANIFOLD",x.rail_to_manifold_min)+field('OIL TRAY WIDTH',x.oil_tray_width_min)+field('OIL TRAY → MANIFOLD',x.oil_tray_to_manifold)+field('FLANGE POSITION',x.flange_position)+field('FLANGE THICKNESS',x.flange_thickness);
+  const manifold=field('MANIFOLD POSITION',x.manifold_position)+field('BOW → CENTRE MANIFOLD',x.bow_to_centre_manifold_min&&x.bow_to_centre_manifold_max?`${x.bow_to_centre_manifold_min} – ${x.bow_to_centre_manifold_max} m`:'')+field('PARALLEL BODY AFT → MID-POINT MANIFOLD',x.parallel_body_aft_min?`min ${x.parallel_body_aft_min}`:'')+field('PARALLEL BODY FORE → MID-POINT MANIFOLD',x.parallel_body_fore_min?`min ${x.parallel_body_fore_min}`:'')+field('MANIFOLD CENTRES',x.manifold_centres_min)+field("SHIP'S RAIL → MANIFOLD",x.rail_to_manifold_min)+field('OIL TRAY WIDTH',x.oil_tray_width_min)+field('OIL TRAY → MANIFOLD',x.oil_tray_to_manifold)+field('FLANGE POSITION',x.flange_position)+field('FLANGE THICKNESS',x.flange_thickness);
   const connections=field('NUMBER OF LOADING ARMS',x.loading_arms_count)+listField('CONNECTIONS',x.connections)+field('CONNECTION STANDARD',x.connection_standard)+field('LOADING ARM / SHORE LINE TYPE',x.shore_line_type)+field('MAX PRESSURE',x.max_pressure);
   const envelope=field(x.waterline_label||'OPERATING ENVELOPE',x.waterline_min&&x.waterline_max?`${x.waterline_min} – ${x.waterline_max}`:(x.waterline_min||x.waterline_max));
   const loading=listField('LOADING RATES',x.loading_rates)+listField('MIN TOPPING-OFF RATE',x.topping_off_rates);
-  const notes=field('SHORE GANGWAY',x.gangway_requirements)+field('SPECIAL RESTRICTIONS',x.special_restrictions)+field('TECHNICAL NOTES',x.technical_notes);
+  const notes=field('WATER DENSITY',x.water_density)+field('DEPTH APPROACHES',x.depth_approaches)+field('DEPTH CHANNEL',x.depth_channel)+field('NAVIGATION RESTRICTIONS',x.navigation_restrictions)+field('WEATHER RESTRICTIONS',x.weather_restrictions)+field('SHORE GANGWAY',x.gangway_requirements)+field('SPECIAL RESTRICTIONS',x.special_restrictions)+field('TECHNICAL NOTES',x.technical_notes);
   return `<div class="pi-detail">
-    <button class="pi-back" data-pi-back>← BACK TO BERTHS</button>
-    <div class="pi-detail-head"><div><small>${esc(x.port)} · ${esc(x.terminal)}</small><h2>BERTH ${esc(x.berth)}</h2>${x.cargo?`<div class="pi-cargo">${esc(x.cargo)}${x.data_status==='PRELIMINARY'?' · PRELIMINARY':''}</div>`:''}</div><span class="pi-side">${esc(x.berthing_side||'—')}</span></div>
+    <button class="pi-back" data-pi-back>← BACK TO ${String(x.facility_type||'').toUpperCase()==='SPM'?'SPMs':'BERTHS'}</button>
+    <div class="pi-detail-head"><div><small>${esc(x.port)} · ${esc(x.terminal)}</small><h2>${esc(facilityLabel(x))}</h2>${x.cargo?`<div class="pi-cargo">${esc(x.cargo)}${x.data_status==='PRELIMINARY'?' · PRELIMINARY':''}</div>`:''}</div><span class="pi-side">${esc(x.berthing_side||'—')}</span></div>
     ${section('VESSEL LIMITS',vessel)}
     ${section('BERTHING',berthing)}
     ${section('MANIFOLD REQUIREMENTS',manifold)}
@@ -91,9 +93,9 @@ function renderPortInfo(){
   if(selected){root.innerHTML=detail(selected);root.querySelector('[data-pi-back]').onclick=()=>{pi.facilityId='';renderPortInfo()};return}
   const notice=noticeFor(pi.port,pi.terminal);
   root.innerHTML=`<div class="pi-wrap">
-    <div class="pi-title"><div><small>PORT INFORMATION CENTER</small><h2>TERMINALS & BERTHS</h2></div><button class="secondary pi-refresh" title="Refresh Port Info">↻</button></div>
+    <div class="pi-title"><div><small>PORT INFORMATION CENTER</small><h2>TERMINALS & FACILITIES</h2></div><button class="secondary pi-refresh" title="Refresh Port Info">↻</button></div>
     ${ports.length>1?`<div class="chips">${ports.map(p=>`<button class="chip ${p===pi.port?'active':''}" data-pi-port="${esc(p)}">${esc(p)}</button>`).join('')}</div>`:''}
-    <div class="pi-terminal-bar"><b>${esc(pi.terminal)}</b><span>${rows.length} BERTHS</span></div>
+    <div class="pi-terminal-bar"><b>${esc(pi.terminal)}</b><span>${rows.length} ${facilityPlural(rows)}</span></div>
     ${terminals.length>1?`<div class="chips">${terminals.map(t=>`<button class="chip ${t===pi.terminal?'active':''}" data-pi-terminal="${esc(t)}">${esc(t)}</button>`).join('')}</div>`:''}
     <div class="pi-grid">${rows.map(compactCard).join('')}</div>
     ${notice?.notice?`<div class="pi-notice compact"><b>IMPORTANT NOTICE</b><div>${esc(notice.notice)}</div></div>`:''}
@@ -110,7 +112,7 @@ switchView=function(v){
     state.view='portInfo';
     ['brief','schedules','weather','export','admin','portInfo'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='portInfo'));
     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='portInfo'));
-    const meta=document.querySelector('#reportMeta');if(meta)meta.textContent='Port Info · Terminals & Berths';
+    const meta=document.querySelector('#reportMeta');if(meta)meta.textContent='Port Info · Terminals & Facilities';
     renderPortInfo();
     return;
   }
