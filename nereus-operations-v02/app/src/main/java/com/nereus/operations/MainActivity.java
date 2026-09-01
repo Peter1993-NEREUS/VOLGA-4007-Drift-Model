@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
@@ -36,12 +37,16 @@ import javax.net.ssl.HttpsURLConnection;
 public class MainActivity extends Activity {
     private static final String API_URL = "https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-api";
     private static final String EXPORT_API_URL = "https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-export";
+    private static final String PORT_INFO_API_URL = "https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-port-info";
     private static final String API_KEY = "sb_publishable_tEjG1IsI7MHVtQf1GGNK0w_yXcxZ8Vd";
 
     private WebView webView;
     private final ExecutorService networkExecutor = Executors.newSingleThreadExecutor();
+    private float touchStartX;
+    private float touchStartY;
+    private boolean touchStartedAtEdge;
 
-    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -131,17 +136,57 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebChromeClient(new WebChromeClient());
+        installSwipeBackGesture();
         root.addView(webView);
         setContentView(root);
         root.requestApplyInsets();
         webView.loadUrl("https://app.local/index.html");
     }
 
+    private void installSwipeBackGesture() {
+        final float density = getResources().getDisplayMetrics().density;
+        final float edgeWidth = 32f * density;
+        final float minSwipe = 88f * density;
+
+        webView.setOnTouchListener((v, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    touchStartX = event.getX();
+                    touchStartY = event.getY();
+                    touchStartedAtEdge = touchStartX <= edgeWidth
+                            || touchStartX >= Math.max(0, webView.getWidth() - edgeWidth);
+                    break;
+
+                case MotionEvent.ACTION_UP:
+                    if (touchStartedAtEdge) {
+                        float dx = event.getX() - touchStartX;
+                        float dy = event.getY() - touchStartY;
+                        boolean horizontal = Math.abs(dx) >= minSwipe
+                                && Math.abs(dx) > Math.abs(dy) * 1.35f;
+                        boolean fromLeft = touchStartX <= edgeWidth && dx > 0;
+                        boolean fromRight = touchStartX >= Math.max(0, webView.getWidth() - edgeWidth) && dx < 0;
+                        if (horizontal && (fromLeft || fromRight)) {
+                            tryNavigateBack(false);
+                        }
+                    }
+                    touchStartedAtEdge = false;
+                    break;
+
+                case MotionEvent.ACTION_CANCEL:
+                    touchStartedAtEdge = false;
+                    break;
+            }
+            return false;
+        });
+    }
+
     private final class NativeNetworkBridge {
         @JavascriptInterface
         public void post(String requestId, String urlString, String bodyJson) {
             if (requestId == null || requestId.length() > 100) return;
-            if (!API_URL.equals(urlString) && !EXPORT_API_URL.equals(urlString)) {
+            if (!API_URL.equals(urlString)
+                    && !EXPORT_API_URL.equals(urlString)
+                    && !PORT_INFO_API_URL.equals(urlString)) {
                 deliverNativeResult(requestId, 0, "", "URL_NOT_ALLOWED");
                 return;
             }
@@ -164,7 +209,7 @@ public class MainActivity extends Activity {
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
             connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("apikey", API_KEY);
-            connection.setRequestProperty("User-Agent", "NEREUS-Operations-Android/0.4.2");
+            connection.setRequestProperty("User-Agent", "NEREUS-Operations-Android/0.4.4");
 
             try {
                 JSONObject body = new JSONObject(bodyJson);
@@ -214,6 +259,23 @@ public class MainActivity extends Activity {
         webView.post(() -> webView.evaluateJavascript(script, null));
     }
 
+    private void tryNavigateBack(boolean allowExit) {
+        if (webView == null) {
+            if (allowExit) super.onBackPressed();
+            return;
+        }
+        String js = "(function(){try{return !!(window.nereusBack&&window.nereusBack());}catch(e){return false;}})()";
+        webView.evaluateJavascript(js, value -> {
+            boolean handledByApp = "true".equalsIgnoreCase(String.valueOf(value));
+            if (handledByApp) return;
+            if (webView != null && webView.canGoBack()) {
+                webView.goBack();
+            } else if (allowExit) {
+                MainActivity.super.onBackPressed();
+            }
+        });
+    }
+
     private String mime(String path) {
         if (path.endsWith(".html")) return "text/html";
         if (path.endsWith(".js")) return "application/javascript";
@@ -238,10 +300,6 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        tryNavigateBack(true);
     }
 }
