@@ -30,13 +30,17 @@ async function fetchPortInfo(force=false){
 
 function compactCard(x){
   const dwt=range(x.dwt_min,x.dwt_max,' MT');
+  const disp=x.displacement_max?`max ${nfmt(x.displacement_max)} MT`:'';
   const loa=range(x.loa_min,x.loa_max,' m');
+  const beam=x.beam_max?`max ${nfmt(x.beam_max)} m`:'';
   return `<button class="pi-card" data-pi-id="${esc(x.id)}">
     <div class="pi-card-head"><div><small>${esc(x.terminal)}</small><h3>BERTH ${esc(x.berth)}</h3></div><span class="pi-side">${esc(x.berthing_side||'—')}</span></div>
     <div class="pi-cargo">${esc(x.cargo||'—')}</div>
     <div class="pi-kpis">
       ${dwt?`<div><small>DWT</small><b>${esc(dwt)}</b></div>`:''}
+      ${disp?`<div><small>DISPLACEMENT</small><b>${esc(disp)}</b></div>`:''}
       ${loa?`<div><small>LOA</small><b>${esc(loa)}</b></div>`:''}
+      ${beam?`<div><small>BEAM</small><b>${esc(beam)}</b></div>`:''}
       ${x.draft_value?`<div><small>${esc(x.draft_label||'DRAFT')}</small><b>${esc(x.draft_value)}</b></div>`:''}
     </div>
     <div class="pi-view">VIEW DETAILS</div>
@@ -46,14 +50,16 @@ function compactCard(x){
 function detail(x){
   const notice=noticeFor(x.port,x.terminal);
   const vessel=field('DWT',range(x.dwt_min,x.dwt_max,' MT'))+
+    field('DISPLACEMENT',x.displacement_max?`max ${nfmt(x.displacement_max)} MT`:'')+
     field('LOA',range(x.loa_min,x.loa_max,' m'))+
+    field('BEAM',x.beam_max?`max ${nfmt(x.beam_max)} m`:'')+
     field('PARALLEL BODY LENGTH',x.parallel_body_min?`min ${nfmt(x.parallel_body_min)} m`:'')+
     field(x.draft_label||'DRAFT',x.draft_value)+field('FREEBOARD',x.freeboard_min);
   const berthing=field('BERTHING SIDE',x.berthing_side)+field('BALLAST DISCHARGE',x.ballast_discharge);
   const manifold=field('MANIFOLD POSITION',x.manifold_position)+field('MANIFOLD CENTRES',x.manifold_centres_min)+field("SHIP'S RAIL → MANIFOLD",x.rail_to_manifold_min)+field('OIL TRAY WIDTH',x.oil_tray_width_min)+field('OIL TRAY → MANIFOLD',x.oil_tray_to_manifold)+field('FLANGE POSITION',x.flange_position)+field('FLANGE THICKNESS',x.flange_thickness);
-  const connections=listField('CONNECTIONS',x.connections)+field('CONNECTION STANDARD',x.connection_standard)+field('SHORE LINE TYPE',x.shore_line_type)+field('MAX PRESSURE',x.max_pressure);
+  const connections=listField('CONNECTIONS',x.connections)+field('CONNECTION STANDARD',x.connection_standard)+field('LOADING ARM / SHORE LINE TYPE',x.shore_line_type)+field('MAX PRESSURE',x.max_pressure);
   const envelope=field(x.waterline_label||'OPERATING ENVELOPE',x.waterline_min&&x.waterline_max?`${x.waterline_min} – ${x.waterline_max}`:(x.waterline_min||x.waterline_max));
-  const loading=listField('AVERAGE LOADING RATE',x.loading_rates)+listField('MIN TOPPING-OFF RATE',x.topping_off_rates);
+  const loading=listField('AVERAGE / MAX LOADING RATE',x.loading_rates)+listField('MIN TOPPING-OFF RATE',x.topping_off_rates);
   const notes=field('SHORE GANGWAY',x.gangway_requirements)+field('SPECIAL RESTRICTIONS',x.special_restrictions)+field('TECHNICAL NOTES',x.technical_notes);
   return `<div class="pi-detail">
     <button class="pi-back" data-pi-back>← BACK TO BERTHS</button>
