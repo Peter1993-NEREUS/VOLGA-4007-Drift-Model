@@ -2,7 +2,7 @@
 const PORT_INFO_API='https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-port-info';
 const pi={data:null,loading:false,port:'',terminal:'',facilityId:''};
 
-function nfmt(v){const s=String(v??'').trim();if(!s)return'';const x=Number(s.replace(',','.'));return Number.isFinite(x)?x.toLocaleString('en-US',{maximumFractionDigits:1}):s}
+function nfmt(v){const s=String(v??'').trim();if(!s)return'';const x=Number(s.replace(',','.'));return Number.isFinite(x)?x.toLocaleString('en-US',{maximumFractionDigits:2}):s}
 function range(min,max,unit=''){const a=nfmt(min),b=nfmt(max);if(a&&b)return `${a} – ${b}${unit}`;if(b)return `max ${b}${unit}`;if(a)return `min ${a}${unit}`;return''}
 function splitItems(v){return String(v||'').split('|').map(x=>x.trim()).filter(Boolean)}
 function field(label,value){if(value===undefined||value===null||String(value).trim()==='')return'';return `<div class="pi-field"><span>${esc(label)}</span><b>${esc(value)}</b></div>`}
@@ -30,7 +30,7 @@ async function fetchPortInfo(force=false){
 
 function compactCard(x){
   const dwt=range(x.dwt_min,x.dwt_max,' MT');
-  const disp=x.displacement_max?`max ${nfmt(x.displacement_max)} MT`:'';
+  const disp=range(x.displacement_min,x.displacement_max,' MT');
   const loa=range(x.loa_min,x.loa_max,' m');
   const beam=x.beam_max?`max ${nfmt(x.beam_max)} m`:'';
   return `<button class="pi-card" data-pi-id="${esc(x.id)}">
@@ -50,7 +50,7 @@ function compactCard(x){
 function detail(x){
   const notice=noticeFor(x.port,x.terminal);
   const vessel=field('DWT',range(x.dwt_min,x.dwt_max,' MT'))+
-    field('DISPLACEMENT',x.displacement_max?`max ${nfmt(x.displacement_max)} MT`:'')+
+    field('DISPLACEMENT',range(x.displacement_min,x.displacement_max,' MT'))+
     field('LOA',range(x.loa_min,x.loa_max,' m'))+
     field('BEAM',x.beam_max?`max ${nfmt(x.beam_max)} m`:'')+
     field('PARALLEL BODY LENGTH',x.parallel_body_min?`min ${nfmt(x.parallel_body_min)} m`:'')+
@@ -59,11 +59,11 @@ function detail(x){
   const manifold=field('MANIFOLD POSITION',x.manifold_position)+field('MANIFOLD CENTRES',x.manifold_centres_min)+field("SHIP'S RAIL → MANIFOLD",x.rail_to_manifold_min)+field('OIL TRAY WIDTH',x.oil_tray_width_min)+field('OIL TRAY → MANIFOLD',x.oil_tray_to_manifold)+field('FLANGE POSITION',x.flange_position)+field('FLANGE THICKNESS',x.flange_thickness);
   const connections=listField('CONNECTIONS',x.connections)+field('CONNECTION STANDARD',x.connection_standard)+field('LOADING ARM / SHORE LINE TYPE',x.shore_line_type)+field('MAX PRESSURE',x.max_pressure);
   const envelope=field(x.waterline_label||'OPERATING ENVELOPE',x.waterline_min&&x.waterline_max?`${x.waterline_min} – ${x.waterline_max}`:(x.waterline_min||x.waterline_max));
-  const loading=listField('AVERAGE / MAX LOADING RATE',x.loading_rates)+listField('MIN TOPPING-OFF RATE',x.topping_off_rates);
+  const loading=listField('LOADING RATES',x.loading_rates)+listField('MIN TOPPING-OFF RATE',x.topping_off_rates);
   const notes=field('SHORE GANGWAY',x.gangway_requirements)+field('SPECIAL RESTRICTIONS',x.special_restrictions)+field('TECHNICAL NOTES',x.technical_notes);
   return `<div class="pi-detail">
     <button class="pi-back" data-pi-back>← BACK TO BERTHS</button>
-    <div class="pi-detail-head"><div><small>${esc(x.port)} · ${esc(x.terminal)}</small><h2>BERTH ${esc(x.berth)}</h2><div class="pi-cargo">${esc(x.cargo)}</div></div><span class="pi-side">${esc(x.berthing_side||'—')}</span></div>
+    <div class="pi-detail-head"><div><small>${esc(x.port)} · ${esc(x.terminal)}</small><h2>BERTH ${esc(x.berth)}</h2>${x.cargo?`<div class="pi-cargo">${esc(x.cargo)}</div>`:''}</div><span class="pi-side">${esc(x.berthing_side||'—')}</span></div>
     ${section('VESSEL LIMITS',vessel)}
     ${section('BERTHING',berthing)}
     ${section('MANIFOLD REQUIREMENTS',manifold)}
