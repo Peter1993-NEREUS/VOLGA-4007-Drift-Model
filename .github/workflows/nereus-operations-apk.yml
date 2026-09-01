@@ -23,6 +23,8 @@ jobs:
           node --check nereus-operations-v02/app/src/main/assets/refresh-v038.js
           node --check nereus-operations-v02/app/src/main/assets/schedules-v039.js
           node --check nereus-operations-v02/app/src/main/assets/admin-access-v040.js
+          node --check nereus-operations-v02/app/src/main/assets/export-v042.js
+          node --check nereus-operations-v02/app/src/main/assets/port-info-v043.js
       - name: Build APK
         working-directory: nereus-operations-v02
         run: gradle --no-daemon :app:assembleDebug
@@ -32,9 +34,9 @@ jobs:
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
           "$APKSIGNER" verify --verbose "$APK"
       - name: Rename APK
-        run: cp nereus-operations-v02/app/build/outputs/apk/debug/app-debug.apk NEREUS-Operations-v0.4.1.apk
+        run: cp nereus-operations-v02/app/build/outputs/apk/debug/app-debug.apk NEREUS-Operations-v0.4.3.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: NEREUS-Operations-v0.4.1-APK
-          path: NEREUS-Operations-v0.4.1.apk
+          name: NEREUS-Operations-v0.4.3-APK
+          path: NEREUS-Operations-v0.4.3.apk
           retention-days: 30
