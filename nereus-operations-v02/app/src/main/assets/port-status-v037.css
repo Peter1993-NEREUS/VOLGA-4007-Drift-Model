@@ -1,0 +1,12 @@
+/* NEREUS Operations v0.3.7 · port status/security panel */
+.port-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:10px 0 14px}
+.port-stat{border:1px solid var(--l);border-radius:11px;padding:9px 10px;background:#0b2130;min-width:0}
+.port-stat span{display:block;color:var(--m);font-size:8px;line-height:1.15;letter-spacing:.04em;margin-bottom:4px}
+.port-stat b{display:block;font-size:11px;line-height:1.25;overflow-wrap:anywhere}
+.port-stat.ps-good{background:#103a27;border-color:#1c6e46;color:#89f0b2}
+.port-stat.ps-alert{background:#4a3510;border-color:#8a6420;color:#ffd56b}
+.port-stat.ps-weather{background:#0c3450;border-color:#1b628d;color:#9edbff}
+.port-stat.ps-danger{background:linear-gradient(135deg,#6b1119,#a20f1c);border-color:#ff5964;color:#fff;box-shadow:0 0 0 1px #ff596433,0 0 14px #ff263a40}
+.port-stat.ps-danger span{color:#ffd1d4}
+.port-stat.ps-neutral{background:#0b2130;border-color:var(--l);color:#dceaf4}
+@media(max-width:600px){.port-panel{grid-template-columns:1fr}.port-stat{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px}.port-stat span{margin:0;font-size:8px}.port-stat b{text-align:right;font-size:11px}}
