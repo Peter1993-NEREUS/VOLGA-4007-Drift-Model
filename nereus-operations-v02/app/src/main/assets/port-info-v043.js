@@ -80,6 +80,15 @@ function detail(x){
   </div>`;
 }
 
+function backFromPortInfoDetail(){
+  if(state?.view==='portInfo'&&pi.facilityId){
+    pi.facilityId='';
+    renderPortInfo();
+    return true;
+  }
+  return false;
+}
+
 function renderPortInfo(){
   const root=document.querySelector('#portInfo');if(!root)return;
   if(!pi.data){fetchPortInfo();return}
@@ -92,7 +101,7 @@ function renderPortInfo(){
   if(!pi.terminal||!terminals.includes(pi.terminal))pi.terminal=terminals[0];
   const rows=portRows.filter(x=>x.terminal===pi.terminal).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
   const selected=pi.facilityId?all.find(x=>x.id===pi.facilityId):null;
-  if(selected){root.innerHTML=detail(selected);root.querySelector('[data-pi-back]').onclick=()=>{pi.facilityId='';renderPortInfo()};return}
+  if(selected){root.innerHTML=detail(selected);root.querySelector('[data-pi-back]').onclick=backFromPortInfoDetail;return}
   const notice=noticeFor(pi.port,pi.terminal);
   root.innerHTML=`<div class="pi-wrap">
     <div class="pi-title"><div><small>PORT INFORMATION CENTER</small><h2>TERMINALS & FACILITIES</h2></div><button class="secondary pi-refresh" title="Refresh Port Info">↻</button></div>
@@ -122,4 +131,5 @@ switchView=function(v){
   baseSwitchPortInfo(v);
 };
 window.renderPortInfo=renderPortInfo;
+window.nereusBack=backFromPortInfoDetail;
 })();
