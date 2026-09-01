@@ -1,5 +1,8 @@
 (function(){
-  const API_PREFIX='https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-api';
+  const API_PREFIXES=[
+    'https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-api',
+    'https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-export'
+  ];
   const nativeApi=window.NereusNative;
   if(!nativeApi||typeof nativeApi.post!=='function')return;
 
@@ -24,14 +27,14 @@
 
   window.fetch=function(input,init){
     const url=typeof input==='string'?input:(input&&input.url)||'';
-    if(url.indexOf(API_PREFIX)!==0)return originalFetch(input,init);
+    if(!API_PREFIXES.some(x=>url.indexOf(x)===0))return originalFetch(input,init);
 
     return new Promise((resolve,reject)=>{
       const id='n'+Date.now().toString(36)+(++seq).toString(36);
       pending.set(id,{resolve,reject});
       try{
         const body=init&&typeof init.body==='string'?init.body:'{}';
-        nativeApi.post(id,body);
+        nativeApi.post(id,url,body);
       }catch(e){
         pending.delete(id);
         reject(new TypeError((e&&e.message)||'NATIVE_NETWORK_ERROR'));

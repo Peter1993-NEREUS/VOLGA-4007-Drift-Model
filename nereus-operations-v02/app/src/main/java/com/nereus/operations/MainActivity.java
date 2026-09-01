@@ -2,6 +2,7 @@ package com.nereus.operations;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -34,6 +35,7 @@ import javax.net.ssl.HttpsURLConnection;
 
 public class MainActivity extends Activity {
     private static final String API_URL = "https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-api";
+    private static final String EXPORT_API_URL = "https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-export";
     private static final String API_KEY = "sb_publishable_tEjG1IsI7MHVtQf1GGNK0w_yXcxZ8Vd";
 
     private WebView webView;
@@ -118,7 +120,13 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return !"app.local".equals(request.getUrl().getHost());
+                Uri uri = request.getUrl();
+                if ("app.local".equals(uri.getHost())) return false;
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                } catch (Exception ignored) {
+                }
+                return true;
             }
         });
 
@@ -131,17 +139,22 @@ public class MainActivity extends Activity {
 
     private final class NativeNetworkBridge {
         @JavascriptInterface
-        public void post(String requestId, String bodyJson) {
+        public void post(String requestId, String urlString, String bodyJson) {
             if (requestId == null || requestId.length() > 100) return;
+            if (!API_URL.equals(urlString) && !EXPORT_API_URL.equals(urlString)) {
+                deliverNativeResult(requestId, 0, "", "URL_NOT_ALLOWED");
+                return;
+            }
             final String safeBody = bodyJson == null ? "{}" : bodyJson;
-            networkExecutor.execute(() -> performPost(requestId, safeBody));
+            final String safeUrl = urlString;
+            networkExecutor.execute(() -> performPost(requestId, safeUrl, safeBody));
         }
     }
 
-    private void performPost(String requestId, String bodyJson) {
+    private void performPost(String requestId, String urlString, String bodyJson) {
         HttpsURLConnection connection = null;
         try {
-            URL url = new URL(API_URL);
+            URL url = new URL(urlString);
             connection = (HttpsURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(15000);
@@ -151,7 +164,7 @@ public class MainActivity extends Activity {
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
             connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("apikey", API_KEY);
-            connection.setRequestProperty("User-Agent", "NEREUS-Operations-Android/0.3.2");
+            connection.setRequestProperty("User-Agent", "NEREUS-Operations-Android/0.4.2");
 
             try {
                 JSONObject body = new JSONObject(bodyJson);
