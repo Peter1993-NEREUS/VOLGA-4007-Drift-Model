@@ -1,18 +1,24 @@
-/* NEREUS Operations v0.3.9 · ADMIN-only lifting schedules */
+/* NEREUS Operations v0.4.0 · protected lifting schedules */
 (function(){
   const SCHEDULE_LABELS={crude:'CRUDE',sheskharis:'SHESKHARIS',ipp:'IPP',nfot:'NFOT',taman:'TAMAN'};
   let scheduleKey='crude',scheduleMode='timeline',refreshBusy=false;
 
-  function canSchedules(){return state.user?.role==='admin'&&state.reports?.schedulesAccess===true&&state.reports?.schedules}
+  function userCanSchedules(){return state.user?.role==='admin'||state.user?.schedules_access===true}
+  function canSchedules(){return userCanSchedules()&&state.reports?.schedulesAccess===true&&state.reports?.schedules}
+  function syncSchedulePermission(d){
+    if(state.user)state.user.schedules_access=!!d?.schedules_access;
+    const allowed=userCanSchedules();
+    const n=$('#schedulesNav');if(n)n.classList.toggle('hidden',!allowed);
+    const nav=$('#nav');if(nav)nav.classList.toggle('nav-four',state.user?.role==='admin');
+    if(!allowed&&state.view==='schedules')state.view='brief';
+  }
 
   const baseAppView=appView;
   appView=function(){
     baseAppView();
-    const allowed=state.user?.role==='admin';
-    const n=$('#schedulesNav');
-    if(n)n.classList.toggle('hidden',!allowed);
-    const nav=$('#nav');
-    if(nav)nav.classList.toggle('nav-four',allowed);
+    const allowed=userCanSchedules();
+    const n=$('#schedulesNav');if(n)n.classList.toggle('hidden',!allowed);
+    const nav=$('#nav');if(nav)nav.classList.toggle('nav-four',state.user?.role==='admin');
   };
 
   cache=function(r){
@@ -25,7 +31,7 @@
     try{
       const d=await call('reports');
       state.reports={source:d.source,generated_at:d.generated_at||'',mobile:parseMobile(d.mobile_rows),weather:parseWeather(d.weather_rows),schedules:d.schedules||null,schedulesAccess:!!d.schedules_access};
-      cache(state.reports);render();banner('LIVE · Google Sheets обновлены автоматически','live');
+      syncSchedulePermission(d);cache(state.reports);render();banner('LIVE · Google Sheets обновлены автоматически','live');
     }catch(e){
       if(AUTH_ERRORS.has(e.message)){clearSession();loginView(msg(e));return}
       let c;try{c=JSON.parse(localStorage.getItem('reports')||'null')}catch(_){c=null}
@@ -33,20 +39,20 @@
     }
   };
 
-  async function forceRefresh039(){
+  async function forceRefresh040(){
     if(refreshBusy)return;refreshBusy=true;const btn=$('#refresh');
     if(btn){btn.classList.add('refresh-busy');btn.disabled=true;btn.setAttribute('aria-busy','true')}
     banner('ОБНОВЛЕНИЕ · запрашиваю свежие данные…','live');
     try{
       const d=await call('reports',{force_refresh:true,request_id:'manual-'+Date.now()+'-'+Math.random().toString(36).slice(2)});
       state.reports={source:d.source,generated_at:d.generated_at||'',mobile:parseMobile(d.mobile_rows),weather:parseWeather(d.weather_rows),schedules:d.schedules||null,schedulesAccess:!!d.schedules_access};
-      cache(state.reports);render();
+      syncSchedulePermission(d);cache(state.reports);render();
       const stamp=d.generated_at?(' · '+String(d.generated_at).replace('T',' ').replace('Z',' UTC')):'';
       banner('ОБНОВЛЕНО · свежие данные получены'+stamp,'live');
     }catch(e){if(AUTH_ERRORS.has(e.message)){clearSession();loginView(msg(e));return}banner('ОБНОВЛЕНИЕ НЕ ВЫПОЛНЕНО · '+msg(e),'')}
     finally{refreshBusy=false;if(btn){btn.classList.remove('refresh-busy');btn.disabled=false;btn.removeAttribute('aria-busy')}}
   }
-  const refreshButton=$('#refresh');if(refreshButton)refreshButton.onclick=forceRefresh039;window.nereusForceRefresh=forceRefresh039;
+  const refreshButton=$('#refresh');if(refreshButton)refreshButton.onclick=forceRefresh040;window.nereusForceRefresh=forceRefresh040;
 
   function qnum(v){const s=String(v||'').replace(/\s/g,'').replace(',','.');const n=Number(s);return Number.isFinite(n)?n:0}
   function fmtQty(v){const n=qnum(v);return n?n.toLocaleString('en-US',{maximumFractionDigits:3})+' MT':'—'}
@@ -72,15 +78,21 @@
     $('#schedules')?.querySelectorAll('[data-skey]').forEach(el=>el.onclick=()=>{scheduleKey=el.dataset.skey;renderSchedules()});
     $('#schedules')?.querySelectorAll('[data-smode]').forEach(el=>el.onclick=()=>{scheduleMode=el.dataset.smode;renderSchedules()});
   }
+  function renderListTable(rows){
+    const headers=['#','TERMINAL','VESSEL','CARGO / GRADE','QUANTITY, MT','LAYCAN','SHIPPER / RECEIVER','REMARKS','BERTH ALLOCATION'];
+    let t='<div class="sched-table-wrap"><table class="sched-table"><thead><tr>'+headers.map(h=>`<th>${h}</th>`).join('')+'</tr></thead><tbody>';
+    rows.forEach((r,i)=>{const cancel=String(r.remarks||'').toUpperCase().includes('CANCELED')?' class="sched-cancel-row"':'';t+=`<tr${cancel} data-srow="${escapeAttr(r)}"><td>${i+1}</td><td>${esc(r.terminal||'—')}</td><td><b>${esc(r.vessel||'TBN')}</b></td><td>${esc(r.cargo||'—')}</td><td class="num">${esc(fmtQty(r.quantity).replace(' MT',''))}</td><td>${esc(r.laycan||'TBA')}</td><td>${esc(r.shipper||'—')}</td><td class="remarks">${esc(r.remarks||'—')}</td><td>${esc(r.berth||'—')}</td></tr>`});
+    return t+'</tbody></table></div><div class="sched-list-note">Порядок строк полностью соответствует Schedule-листу.</div>';
+  }
   function renderSchedules(){
-    const root=$('#schedules');if(!root)return;if(state.user?.role!=='admin'){root.innerHTML='';return}
-    if(!canSchedules()){root.innerHTML='<div class="empty">SCHEDULES доступны администратору только при LIVE-соединении.</div>';return}
+    const root=$('#schedules');if(!root)return;if(!userCanSchedules()){root.innerHTML='';return}
+    if(!canSchedules()){root.innerHTML='<div class="empty">SCHEDULES доступны только при LIVE-соединении.</div>';return}
     const all=state.reports.schedules||{};if(!all[scheduleKey])scheduleKey=Object.keys(SCHEDULE_LABELS).find(k=>Array.isArray(all[k]))||'crude';
     const rows=Array.isArray(all[scheduleKey])?all[scheduleKey]:[];const keys=Object.keys(SCHEDULE_LABELS).filter(k=>Array.isArray(all[k]));const total=rows.reduce((a,r)=>a+qnum(r.quantity),0);const berthCount=new Set(rows.map(berthOf)).size;
     let h='<div class="sched-tabs">'+keys.map(k=>`<button data-skey="${k}" class="${k===scheduleKey?'active':''}">${SCHEDULE_LABELS[k]}</button>`).join('')+'</div>';
-    h+=`<div class="sched-head"><div><b>${SCHEDULE_LABELS[scheduleKey]} LIFTING SCHEDULE</b><small>Only Google Sheet schedule fields</small></div><div class="sched-modes"><button data-smode="timeline" class="${scheduleMode==='timeline'?'active':''}">TIMELINE</button><button data-smode="list" class="${scheduleMode==='list'?'active':''}">LIST</button></div></div>`;
+    h+=`<div class="sched-head"><div><b>${SCHEDULE_LABELS[scheduleKey]} LIFTING SCHEDULE</b><small>Только данные Schedule-листа Google Sheets</small></div><div class="sched-modes"><button data-smode="timeline" class="${scheduleMode==='timeline'?'active':''}">TIMELINE</button><button data-smode="list" class="${scheduleMode==='list'?'active':''}">LIST</button></div></div>`;
     h+=`<div class="sched-kpis"><div><small>POSITIONS</small><b>${rows.length}</b></div><div><small>TOTAL QUANTITY</small><b>${total.toLocaleString('en-US',{maximumFractionDigits:3})} MT</b></div><div><small>BERTH GROUPS</small><b>${berthCount}</b></div></div>`;
-    if(scheduleMode==='list')h+='<div class="sched-list">'+rows.map(r=>`<div class="sched-card" data-srow="${escapeAttr(r)}"><b>${esc(r.vessel||'TBN')}</b><small>${esc(r.terminal||'—')} · ${esc(berthOf(r))}</small><div class="sched-card-grid"><span><small>CARGO / GRADE</small><b>${esc(r.cargo||'—')}</b></span><span><small>QUANTITY</small><b>${esc(fmtQty(r.quantity))}</b></span><span><small>LAYCAN</small><b>${esc(r.laycan||'TBA')}</b></span><span><small>SHIPPER / RECEIVER</small><b>${esc(r.shipper||'—')}</b></span></div></div>`).join('')+'</div>';
+    if(scheduleMode==='list')h+=renderListTable(rows);
     else{
       const valid=rows.filter(r=>parseLaycan(r.laycan)),tba=rows.filter(r=>!parseLaycan(r.laycan)),range=timelineRange(valid),start=range[0],end=range[1],count=Math.max(1,daysBetween(start,end)+1),groups=[...new Set(valid.map(berthOf))];
       h+='<div class="sched-timeline"><div class="sched-scroll"><div class="sched-axis" style="--days:'+count+'"><div class="berth-axis">BERTH / GROUP</div>';for(let i=0;i<count;i++){const x=new Date(start);x.setDate(start.getDate()+i);h+=`<div>${fmtDay(x)}</div>`}h+='</div>';
@@ -90,7 +102,7 @@
     root.innerHTML=h;bindScheduleClicks();
   }
 
-  switchView=function(v){const isAdmin=state.user?.role==='admin';if((v==='admin'||v==='schedules')&&!isAdmin)v='brief';state.view=v;$('#brief').classList.toggle('hidden',v!=='brief');$('#weather').classList.toggle('hidden',v!=='weather');$('#schedules').classList.toggle('hidden',v!=='schedules');$('#admin').classList.toggle('hidden',v!=='admin');$$('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));if(v==='admin'){$('#reportMeta').textContent='Admin · Users & subscriptions';renderAdmin()}else if(v==='schedules'){$('#reportMeta').textContent='Schedules · ADMIN ONLY';renderSchedules()}else if(state.reports)$('#reportMeta').textContent=(v==='brief'?'Mobile Brief · '+state.reports.mobile.date:'Weather · '+state.reports.weather.date)};
+  switchView=function(v){const isAdmin=state.user?.role==='admin',schedAllowed=userCanSchedules();if(v==='admin'&&!isAdmin)v='brief';if(v==='schedules'&&!schedAllowed)v='brief';state.view=v;$('#brief').classList.toggle('hidden',v!=='brief');$('#weather').classList.toggle('hidden',v!=='weather');$('#schedules').classList.toggle('hidden',v!=='schedules');$('#admin').classList.toggle('hidden',v!=='admin');$$('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));if(v==='admin'){$('#reportMeta').textContent='Admin · Users & subscriptions';renderAdmin()}else if(v==='schedules'){$('#reportMeta').textContent='Schedules';renderSchedules()}else if(state.reports)$('#reportMeta').textContent=(v==='brief'?'Mobile Brief · '+state.reports.mobile.date:'Weather · '+state.reports.weather.date)};
   render=function(){if(!state.reports)return;$('#sourceMeta').textContent=state.reports.source?.includes('google')?'LIVE · GOOGLE SHEETS':'CACHE';renderBrief();renderWeather();renderSchedules();switchView(state.view)};
   ensureModal();
 })();
