@@ -1,7 +1,8 @@
 (function(){
   const API_PREFIXES=[
     'https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-api',
-    'https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-export'
+    'https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-export',
+    'https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-port-info'
   ];
   const nativeApi=window.NereusNative;
   if(!nativeApi||typeof nativeApi.post!=='function')return;
