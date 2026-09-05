@@ -1,0 +1,14 @@
+{
+  "requestId": "1788637251206-a2eqr9",
+  "status": "ready",
+  "startUtc": "2026-08-30T07:00:00Z",
+  "endUtc": "2026-09-05T07:00:00Z",
+  "domain": {
+    "minLat": 39.91667175292969,
+    "maxLat": 45.83333206176758,
+    "minLon": 36.833343505859375,
+    "maxLon": 42.75
+  },
+  "regional": true,
+  "format": "VOLGA_DRIFTPACK_V1_3_1_DYNAMIC"
+}

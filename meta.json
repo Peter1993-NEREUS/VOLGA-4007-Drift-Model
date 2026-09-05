@@ -1,0 +1,73 @@
+{
+  "format": "VOLGA_DRIFTPACK_V1_3_1_DYNAMIC",
+  "scale": 0.0001,
+  "missing": -32768,
+  "requestId": "1788637251206-a2eqr9",
+  "startUtc": "2026-08-30T07:00:00Z",
+  "endUtc": "2026-09-05T07:00:00Z",
+  "localOffsetHours": 3.0,
+  "domain": {
+    "minLat": 39.91667175292969,
+    "maxLat": 45.83333206176758,
+    "minLon": 36.833343505859375,
+    "maxLon": 42.75
+  },
+  "fixed": {
+    "vessel": "LIDER BORDO MAVI",
+    "imo": "8009088",
+    "cargo": "3000",
+    "draftM": 3.0,
+    "loaM": 121.48,
+    "beamM": 21.0,
+    "leeway": 0.06069924631313022,
+    "integrationMinutes": 15,
+    "blendHours": 24,
+    "loadCondition": "USER DEFINED",
+    "currentVerticalMean": "mean of 3 available CMEMS levels from 0.50 to 2.50 m for draft 3.00 m; global fallback: mean of 3 available CMEMS levels from 0.49 to 2.65 m for draft 3.00 m",
+    "leewayNote": "User-defined coefficient; wind source controlled in app"
+  },
+  "global": {
+    "startUtc": "2026-08-30T06:00:00Z",
+    "endUtc": "2026-09-05T12:00:00Z",
+    "nt": 26,
+    "ny": 72,
+    "nx": 72,
+    "lat0": 39.91667175292969,
+    "latStep": 0.08333587646484375,
+    "lon0": 36.833343505859375,
+    "lonStep": 0.0833282470703125,
+    "timeStepHours": 6.0,
+    "spatialSubsample": 1
+  },
+  "stokes": {
+    "startUtc": "2026-08-30T06:00:00Z",
+    "endUtc": "2026-09-05T09:00:00Z",
+    "nt": 50,
+    "ny": 72,
+    "nx": 72,
+    "lat0": 39.91666793823242,
+    "latStep": 0.08333206176757812,
+    "lon0": 36.83333206176758,
+    "lonStep": 0.08333206176757812,
+    "timeStepHours": 3.0,
+    "spatialSubsample": 1
+  },
+  "regional": {
+    "startUtc": "2026-08-30T06:00:00Z",
+    "endUtc": "2026-09-05T08:00:00Z",
+    "nt": 147,
+    "ny": 217,
+    "nx": 209,
+    "lat0": 40.5,
+    "latStep": 0.02500152587890625,
+    "lon0": 36.79999923706055,
+    "lonStep": 0.02500152587890625,
+    "timeStepHours": 1.0,
+    "spatialSubsample": 1
+  },
+  "products": {
+    "globalCurrent": "cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i",
+    "stokes": "cmems_mod_glo_wav_anfc_0.083deg_PT3H-i",
+    "regionalCurrent": "cmems_mod_blk_phy-cur_anfc_2.5km_PT1H-m"
+  }
+}
