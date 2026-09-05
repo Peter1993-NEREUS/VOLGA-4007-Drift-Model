@@ -1,0 +1,28 @@
+{
+  "requestId": "vessel-1788636964793-6sykr",
+  "imo": "8009088",
+  "status": "ready",
+  "generatedUtc": "2026-09-05T19:36:18Z",
+  "name": "LIDER BORDO MAVI",
+  "type": "Ro-Ro Cargo Ship",
+  "flag": "Cameroon",
+  "year": 1985,
+  "loa": 121.48,
+  "beam": 21.0,
+  "referenceDraft": 0.0,
+  "gt": 9080.0,
+  "dwt": 4818.0,
+  "mmsi": "613994302",
+  "callsign": "TJM0011",
+  "source": "VesselFinder public particulars",
+  "sourceUrl": "https://www.vesselfinder.com/vessels/details/8009088",
+  "alternateName": "Hoburgen",
+  "nameConflict": true,
+  "sources": [
+    "VesselFinder public particulars",
+    "Wikidata fallback"
+  ],
+  "message": "Current public particulars found",
+  "confidence": "high",
+  "warnings": []
+}
