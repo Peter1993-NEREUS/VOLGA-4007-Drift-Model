@@ -14,7 +14,7 @@
 #app:not(.hidden)>main{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;padding-bottom:12px}
 #app:not(.hidden)>nav{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;width:100%!important;max-width:none!important;flex:0 0 auto;padding-bottom:max(8px,env(safe-area-inset-bottom))}
 </style></head><body>
-<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.20 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
+<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.21 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
 <section id="app" class="hidden"><header><div><b>NEREUS OPERATIONS</b><small id="userLine"></small></div><button id="refresh" class="secondary" title="Обновить данные">↻</button><button id="logout" class="link">Выйти</button></header><main><div id="banner" class="banner hidden"></div><div class="meta"><span id="reportMeta"></span><span id="sourceMeta"></span></div><div id="brief"></div><div id="schedules" class="hidden"></div><div id="weather" class="hidden"></div><div id="portInfo" class="hidden"></div><div id="export" class="hidden"></div><div id="admin" class="hidden"></div></main><nav id="nav"><button data-view="brief" class="active">Mobile Brief</button><button id="schedulesNav" data-view="schedules" class="hidden">Schedules</button><button data-view="weather">Weather</button><button data-view="portInfo">Port Info</button><button id="exportNav" data-view="export" class="hidden">Export</button><button id="adminNav" data-view="admin" class="hidden">Admin</button></nav></section>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/app.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v034.js"></script>
@@ -30,13 +30,124 @@ const EXPORT_API='https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-e
 function exportAllowed(){return state.user?.role==='admin'||state.user?.schedules_access===true}
 function syncExportNav(){const n=document.querySelector('#exportNav');if(n)n.classList.toggle('hidden',!exportAllowed())}
 const baseAppView=appView;appView=function(){baseAppView();syncExportNav()};
-async function exportManifest(){let r;try{r=await fetch(EXPORT_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'manifest',device_id:device,access_token:state.token}),cache:'no-store'})}catch(_){throw Error('CONNECTION_ERROR')}let d;try{d=await r.json()}catch(_){throw Error('SERVER_RESPONSE_ERROR')}if(!r.ok||!d.ok)throw Error(d.error||'EXPORT_ERROR');return d.exports}
-const link=(u,t)=>u?`<a class="export-link" href="${esc(u)}" target="_blank" rel="noopener">${t}</a>`:'—';
-function rows(o){return Object.entries(o||{}).map(([k,v])=>`<div>${esc(v?.name||k)}</div><div>${link(v?.pdf,'PDF')}</div><div>${link(v?.xlsx,'XLSX')}</div>`).join('')}
-function box(title,sub,body,extra=''){return`<div class="export-box"><div class="export-title"><b>${title}</b><small>${sub}</small></div><div class="export-grid"><div class="h">REPORT</div><div class="h">PDF</div><div class="h">XLSX</div>${body}</div>${extra}</div>`}
-async function renderExport(){const root=document.querySelector('#export');if(!exportAllowed()){root.innerHTML='';return}root.innerHTML='<div class="empty">Загрузка Export Center…</div>';try{const m=await exportManifest(),v=m.views||{};root.innerHTML='<div class="section">EXPORT CENTER</div>'+box('SCHEDULES','исходные табличные сводки',rows(m.schedules))+box('PORT VIEWS · COMMERCIAL','все колонки',rows(v.commercial),v.all_commercial_xlsx?`<div style="margin-top:9px">${link(v.all_commercial_xlsx,'ALL 4 PORTS · XLSX')}</div>`:'')+box('PORT VIEWS · NO COMMERCIAL','без коммерческих полей',rows(v.no_commercial),v.all_no_commercial_xlsx?`<div style="margin-top:9px">${link(v.all_no_commercial_xlsx,'ALL 4 PORTS · XLSX')}</div>`:'')+box('WEATHER REPORT','актуальная погода',`<div>${esc(m.weather?.name||'Weather Report')}</div><div>${link(m.weather?.pdf,'PDF')}</div><div>${link(m.weather?.xlsx,'XLSX')}</div>`)}catch(e){root.innerHTML=`<div class="section">EXPORT CENTER</div><div class="export-note">${e.message==='EXPORT_MANIFEST_NOT_AVAILABLE'?'Установите Apps Script v0.4.3 и обновите данные.':'Экспорт сейчас недоступен: '+esc(e.message)}</div>`}}
-const baseSwitch=switchView;switchView=function(v){if(v==='export'){if(!exportAllowed())return baseSwitch('brief');state.view='export';['brief','schedules','weather','export','admin'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='export'));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='export'));document.querySelector('#reportMeta').textContent='Export Center';renderExport();return}document.querySelector('#export')?.classList.add('hidden');baseSwitch(v);syncExportNav()};
-const baseRender=render;render=function(){baseRender();syncExportNav();if(state.view==='export')renderExport()};
+
+async function exportManifest(){
+  let r;
+  try{
+    r=await fetch(EXPORT_API,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'manifest',device_id:device,access_token:state.token}),
+      cache:'no-store'
+    });
+  }catch(_){throw Error('CONNECTION_ERROR')}
+  let d;try{d=await r.json()}catch(_){throw Error('SERVER_RESPONSE_ERROR')}
+  if(!r.ok||!d.ok)throw Error(d.error||'EXPORT_ERROR');
+  return d.exports;
+}
+
+function dl(id,label){
+  return id?'<a class="export-link nereus-download" href="#" data-export-id="'+esc(id)+'">'+esc(label)+'</a>':'—';
+}
+function rows(o,prefix){
+  return Object.entries(o||{}).map(([k,v]) =>
+    '<div>'+esc(v?.name||k)+'</div>'+
+    '<div>'+dl(prefix+':'+k+':pdf','PDF')+'</div>'+
+    '<div>'+dl(prefix+':'+k+':xlsx','XLSX')+'</div>'
+  ).join('');
+}
+function box(title,sub,body,extra=''){
+  return '<div class="export-box"><div class="export-title"><b>'+title+'</b><small>'+sub+'</small></div>'+
+    '<div class="export-grid"><div class="h">REPORT</div><div class="h">PDF</div><div class="h">XLSX</div>'+body+'</div>'+extra+'</div>';
+}
+
+function ensureDownloadFrame(){
+  let fr=document.getElementById('nereusExportFrame');
+  if(!fr){
+    fr=document.createElement('iframe');
+    fr.id='nereusExportFrame';
+    fr.name='nereusExportFrame';
+    fr.style.display='none';
+    document.body.appendChild(fr);
+  }
+  return fr;
+}
+function hiddenInput(name,value){
+  const i=document.createElement('input');
+  i.type='hidden';i.name=name;i.value=String(value??'');
+  return i;
+}
+function startDownload(exportId,button){
+  ensureDownloadFrame();
+  const form=document.createElement('form');
+  form.method='POST';
+  form.action=EXPORT_API;
+  form.target='nereusExportFrame';
+  form.style.display='none';
+  form.appendChild(hiddenInput('action','download'));
+  form.appendChild(hiddenInput('export_id',exportId));
+  form.appendChild(hiddenInput('device_id',device));
+  form.appendChild(hiddenInput('access_token',state.token));
+  document.body.appendChild(form);
+  if(button){
+    const old=button.textContent;
+    button.textContent='...';
+    button.style.pointerEvents='none';
+    setTimeout(()=>{button.textContent=old;button.style.pointerEvents='';},1800);
+  }
+  form.submit();
+  setTimeout(()=>form.remove(),3000);
+}
+function bindDownloads(root){
+  root.querySelectorAll('.nereus-download').forEach(a=>{
+    a.addEventListener('click',e=>{
+      e.preventDefault();
+      const id=a.getAttribute('data-export-id')||'';
+      if(id)startDownload(id,a);
+    });
+  });
+}
+
+async function renderExport(){
+  const root=document.querySelector('#export');
+  if(!exportAllowed()){root.innerHTML='';return}
+  root.innerHTML='<div class="empty">Загрузка Export Center…</div>';
+  try{
+    const m=await exportManifest(),v=m.views||{};
+    root.innerHTML=
+      '<div class="section">EXPORT CENTER</div>'+
+      box('SCHEDULES','исходные табличные сводки',rows(m.schedules,'schedule'))+
+      box('PORT VIEWS · COMMERCIAL','все колонки',rows(v.commercial,'view:commercial'),
+        '<div style="margin-top:9px">'+dl('view:commercial:all:xlsx','ALL 4 PORTS · XLSX')+'</div>')+
+      box('PORT VIEWS · NO COMMERCIAL','без коммерческих полей',rows(v.no_commercial,'view:no_commercial'),
+        '<div style="margin-top:9px">'+dl('view:no_commercial:all:xlsx','ALL 4 PORTS · XLSX')+'</div>')+
+      box('WEATHER REPORT','актуальная погода',
+        '<div>'+esc(m.weather?.name||'Weather Report')+'</div>'+
+        '<div>'+dl('weather:pdf','PDF')+'</div>'+
+        '<div>'+dl('weather:xlsx','XLSX')+'</div>');
+    bindDownloads(root);
+  }catch(err){
+    root.innerHTML='<div class="section">EXPORT CENTER</div><div class="export-note">Экспорт сейчас недоступен: '+esc(err.message||'EXPORT_ERROR')+'</div>';
+  }
+}
+
+const baseSwitch=switchView;
+switchView=function(v){
+  if(v==='export'){
+    if(!exportAllowed())return baseSwitch('brief');
+    state.view='export';
+    ['brief','schedules','weather','portInfo','export','admin'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='export'));
+    document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='export'));
+    document.querySelector('#reportMeta').textContent='Export Center';
+    renderExport();
+    return;
+  }
+  document.querySelector('#export')?.classList.add('hidden');
+  baseSwitch(v);
+  syncExportNav();
+};
+const baseRender=render;
+render=function(){baseRender();syncExportNav();if(state.view==='export')renderExport()};
 syncExportNav();
 })();
 </script>
