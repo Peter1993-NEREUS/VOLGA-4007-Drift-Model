@@ -14,7 +14,7 @@
 #app:not(.hidden)>main{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;padding-bottom:12px}
 #app:not(.hidden)>nav{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;width:100%!important;max-width:none!important;flex:0 0 auto;padding-bottom:max(8px,env(safe-area-inset-bottom))}
 </style></head><body>
-<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.21 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
+<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.24 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
 <section id="app" class="hidden"><header><div><b>NEREUS OPERATIONS</b><small id="userLine"></small></div><button id="refresh" class="secondary" title="Обновить данные">↻</button><button id="logout" class="link">Выйти</button></header><main><div id="banner" class="banner hidden"></div><div class="meta"><span id="reportMeta"></span><span id="sourceMeta"></span></div><div id="brief"></div><div id="schedules" class="hidden"></div><div id="weather" class="hidden"></div><div id="portInfo" class="hidden"></div><div id="export" class="hidden"></div><div id="admin" class="hidden"></div></main><nav id="nav"><button data-view="brief" class="active">Mobile Brief</button><button id="schedulesNav" data-view="schedules" class="hidden">Schedules</button><button data-view="weather">Weather</button><button data-view="portInfo">Port Info</button><button id="exportNav" data-view="export" class="hidden">Export</button><button id="adminNav" data-view="admin" class="hidden">Admin</button></nav></section>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/app.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v034.js"></script>
@@ -138,7 +138,7 @@ switchView=function(v){
     state.view='export';
     ['brief','schedules','weather','portInfo','export','admin'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='export'));
     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='export'));
-    document.querySelector('#reportMeta').textContent='Export Center · v1.1.21';
+    document.querySelector('#reportMeta').textContent='Export Center · v1.1.24';
     renderExport();
     return;
   }
@@ -151,4 +151,118 @@ render=function(){baseRender();syncExportNav();if(state.view==='export')renderEx
 syncExportNav();
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@ba00e07e12967bd2e888ed81ea70e209980f0fb2/nereus-operations-v02/app/src/main/assets/port-info-v043.js"></script></body></html>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@ba00e07e12967bd2e888ed81ea70e209980f0fb2/nereus-operations-v02/app/src/main/assets/port-info-v043.js"></script><script>
+(function(){
+  state.departedPending=Array.isArray(state.departedPending)?state.departedPending:[];
+
+  function pendingKey(v){
+    return [
+      String(v?.imo||v?.vessel||'').trim().toUpperCase(),
+      String(v?.port||'').trim().toUpperCase(),
+      String(v?.terminal||'').trim().toUpperCase(),
+      String(v?.eta||'').trim(),
+      String(v?.load_position||'').trim().toUpperCase()
+    ].join('|');
+  }
+
+  function pendingForPort(port){
+    const p=String(port||'').trim().toUpperCase();
+    const seen=new Set();
+    return (state.departedPending||[]).filter(v=>{
+      if(String(v?.port||'').trim().toUpperCase()!==p)return false;
+      const k=pendingKey(v);
+      if(seen.has(k))return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  async function loadDepartedPendingWeb(){
+    if(!state.token)return;
+    try{
+      const d=await call('departedPending');
+      state.departedPending=Array.isArray(d?.rows)?d.rows:[];
+      if(state.reports&&state.view==='brief')renderBrief();
+    }catch(err){
+      console.warn('DEPARTED_PENDING unavailable',err);
+      state.departedPending=[];
+      if(state.reports&&state.view==='brief')renderBrief();
+    }
+  }
+  window.nereusLoadDepartedPending=loadDepartedPendingWeb;
+
+  renderBrief=function(){
+    const d=state.reports?.mobile||{ports:[]};
+    const ps=d.ports||[];
+    if(!state.port||!ps.some(p=>p.name===state.port))state.port=ps[0]?.name;
+
+    const p=ps.find(q=>q.name===state.port);
+    let h=chips(ps.map(q=>q.name),state.port);
+
+    if(p){
+      const groups=(p.groups||[]).slice();
+      const pending=pendingForPort(p.name);
+
+      if(pending.length){
+        const g={
+          status:'DEPARTED · ETS NOT YET',
+          vessels:pending.map(v=>({
+            vessel:v.vessel||'',
+            terminal:v.terminal||'',
+            cargo:v.cargo||'',
+            qty:v.qty||'',
+            loadPosition:v.load_position||'',
+            eta:v.eta||'',
+            etb:v.etb||'',
+            ets:'NOT YET'
+          }))
+        };
+        const idx=groups.findIndex(x=>x.status==='DEPARTED - LAST 5 DAYS');
+        if(idx>=0)groups.splice(idx,0,g);else groups.push(g);
+      }
+
+      for(const g of groups){
+        h+='<div class="section">'+esc(g.status)+' · '+g.vessels.length+'</div>';
+        h+=g.vessels.length
+          ? '<div class="grid">'+g.vessels.map(v=>
+              '<div class="vessel">'+
+                '<b>'+esc(v.vessel)+'</b>'+
+                '<div class="terminal">'+esc(v.terminal||'—')+'</div>'+
+                '<div class="cargo"><span>'+esc(v.cargo||'—')+'</span><span>'+esc(v.qty||'—')+' MT</span></div>'+
+                '<div class="loadpos"><span>LOAD POSITION</span><b>'+esc(v.loadPosition||'—')+'</b></div>'+
+                '<div class="times">'+
+                  '<div class="time"><span>ETA / ARR</span><b>'+esc(v.eta||'—')+'</b></div>'+
+                  '<div class="time"><span>ETB</span><b>'+esc(v.etb||'—')+'</b></div>'+
+                  '<div class="time"><span>ETS</span><b>'+esc(v.ets||'—')+'</b></div>'+
+                '</div>'+
+              '</div>'
+            ).join('')+'</div>'
+          : '<div class="empty">Нет судов</div>';
+      }
+    }
+
+    $('#brief').innerHTML=h;
+    $('#brief').querySelectorAll('[data-chip]').forEach(b=>{
+      b.onclick=()=>{state.port=b.dataset.chip;renderBrief()}
+    });
+  };
+
+  const baseAppViewPending=appView;
+  appView=function(){
+    baseAppViewPending();
+    setTimeout(loadDepartedPendingWeb,0);
+  };
+
+  const refreshBtn=document.querySelector('#refresh');
+  if(refreshBtn)refreshBtn.addEventListener('click',()=>setTimeout(loadDepartedPendingWeb,50));
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'&&(state.token||state.refresh)){
+      setTimeout(loadDepartedPendingWeb,50);
+    }
+  });
+
+  if(state.token)setTimeout(loadDepartedPendingWeb,100);
+})();
+</script>
+</body></html>
