@@ -14,7 +14,7 @@
 #app:not(.hidden)>main{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;padding-bottom:12px}
 #app:not(.hidden)>nav{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;width:100%!important;max-width:none!important;flex:0 0 auto;padding-bottom:max(8px,env(safe-area-inset-bottom))}
 </style></head><body>
-<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.22 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
+<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.23 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
 <section id="app" class="hidden"><header><div><b>NEREUS OPERATIONS</b><small id="userLine"></small></div><button id="refresh" class="secondary" title="Обновить данные">↻</button><button id="logout" class="link">Выйти</button></header><main><div id="banner" class="banner hidden"></div><div class="meta"><span id="reportMeta"></span><span id="sourceMeta"></span></div><div id="brief"></div><div id="schedules" class="hidden"></div><div id="weather" class="hidden"></div><div id="portInfo" class="hidden"></div><div id="export" class="hidden"></div><div id="admin" class="hidden"></div></main><nav id="nav"><button data-view="brief" class="active">Mobile Brief</button><button id="schedulesNav" data-view="schedules" class="hidden">Schedules</button><button data-view="weather">Weather</button><button data-view="portInfo">Port Info</button><button id="exportNav" data-view="export" class="hidden">Export</button><button id="adminNav" data-view="admin" class="hidden">Admin</button></nav></section>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/app.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v034.js"></script>
@@ -41,7 +41,7 @@
     const pending={};
 
     for(const row of rows||[]){
-      const packed=String(row?.[8]??'').trim();
+      const packed=(row||[]).map(v=>String(v??'').trim()).filter(v=>v.includes('WEB_PENDING@@')).join('|||');
       if(!packed||!packed.includes('WEB_PENDING@@'))continue;
 
       for(const item of packed.split('|||')){
@@ -220,7 +220,7 @@ switchView=function(v){
     state.view='export';
     ['brief','schedules','weather','portInfo','export','admin'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='export'));
     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='export'));
-    document.querySelector('#reportMeta').textContent='Export Center · v1.1.22';
+    document.querySelector('#reportMeta').textContent='Export Center · v1.1.23';
     renderExport();
     return;
   }
