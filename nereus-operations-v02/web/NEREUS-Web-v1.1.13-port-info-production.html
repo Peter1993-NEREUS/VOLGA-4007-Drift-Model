@@ -14,10 +14,92 @@
 #app:not(.hidden)>main{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;padding-bottom:12px}
 #app:not(.hidden)>nav{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;width:100%!important;max-width:none!important;flex:0 0 auto;padding-bottom:max(8px,env(safe-area-inset-bottom))}
 </style></head><body>
-<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.21 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
+<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.22 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
 <section id="app" class="hidden"><header><div><b>NEREUS OPERATIONS</b><small id="userLine"></small></div><button id="refresh" class="secondary" title="Обновить данные">↻</button><button id="logout" class="link">Выйти</button></header><main><div id="banner" class="banner hidden"></div><div class="meta"><span id="reportMeta"></span><span id="sourceMeta"></span></div><div id="brief"></div><div id="schedules" class="hidden"></div><div id="weather" class="hidden"></div><div id="portInfo" class="hidden"></div><div id="export" class="hidden"></div><div id="admin" class="hidden"></div></main><nav id="nav"><button data-view="brief" class="active">Mobile Brief</button><button id="schedulesNav" data-view="schedules" class="hidden">Schedules</button><button data-view="weather">Weather</button><button data-view="portInfo">Port Info</button><button id="exportNav" data-view="export" class="hidden">Export</button><button id="adminNav" data-view="admin" class="hidden">Admin</button></nav></section>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/app.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v034.js"></script>
+<script>
+(function(){
+  const baseParseMobile=parseMobile;
+
+  function webPendingDate(value){
+    const raw=String(value??'').trim();
+    if(!raw)return '';
+    const n=Number(raw.replace(',','.'));
+    if(Number.isFinite(n)&&n>30000){
+      const mins=Math.round(n*1440);
+      const ms=Date.UTC(1899,11,30)+mins*60000;
+      const d=new Date(ms);
+      const p=x=>String(x).padStart(2,'0');
+      return p(d.getUTCDate())+'.'+p(d.getUTCMonth()+1)+'.'+d.getUTCFullYear()+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());
+    }
+    return raw;
+  }
+
+  parseMobile=function(rows){
+    const parsed=baseParseMobile(rows);
+    const pending={};
+
+    for(const row of rows||[]){
+      const packed=String(row?.[8]??'').trim();
+      if(!packed||!packed.includes('WEB_PENDING@@'))continue;
+
+      for(const item of packed.split('|||')){
+        const x=item.split('@@');
+        if(x[0]!=='WEB_PENDING'||x.length<11)continue;
+
+        const port=String(x[1]||'').trim().toUpperCase();
+        const vessel=String(x[2]||'').trim();
+        const terminal=String(x[3]||'').trim();
+        const imo=String(x[4]||'').trim();
+        const cargo=String(x[5]||'').trim();
+        const qty=String(x[6]||'').trim().replace(/,/g,'.');
+        const loadPosition=String(x[7]||'').trim();
+        const eta=webPendingDate(x[8]);
+        const etb=webPendingDate(x[9]);
+        const ets=String(x[10]||'').trim()||'NOT YET';
+
+        if(!port||!vessel)continue;
+        if(!pending[port])pending[port]=[];
+
+        const key=[
+          imo||vessel.toUpperCase(),
+          terminal.toUpperCase(),
+          cargo.toUpperCase(),
+          qty,
+          loadPosition.toUpperCase(),
+          eta
+        ].join('|');
+
+        if(pending[port].some(v=>v._pendingKey===key))continue;
+
+        pending[port].push({
+          vessel,terminal,imo,cargo,qty,loadPosition,eta,etb,ets,
+          _pendingKey:key
+        });
+      }
+    }
+
+    for(const port of parsed.ports||[]){
+      const list=pending[String(port.name||'').toUpperCase()]||[];
+      if(!list.length)continue;
+
+      list.forEach(v=>delete v._pendingKey);
+
+      const group={
+        status:'DEPARTED · ETS PENDING',
+        vessels:list
+      };
+
+      const idx=port.groups.findIndex(g=>g.status==='DEPARTED - LAST 5 DAYS');
+      if(idx>=0)port.groups.splice(idx,0,group);
+      else port.groups.push(group);
+    }
+
+    return parsed;
+  };
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/status-v036.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/port-status-v037.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/refresh-v038.js"></script>
@@ -138,7 +220,7 @@ switchView=function(v){
     state.view='export';
     ['brief','schedules','weather','portInfo','export','admin'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='export'));
     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='export'));
-    document.querySelector('#reportMeta').textContent='Export Center · v1.1.21';
+    document.querySelector('#reportMeta').textContent='Export Center · v1.1.22';
     renderExport();
     return;
   }
