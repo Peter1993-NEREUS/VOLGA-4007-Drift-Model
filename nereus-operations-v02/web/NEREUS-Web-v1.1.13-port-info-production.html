@@ -14,7 +14,7 @@
 #app:not(.hidden)>main{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;padding-bottom:12px}
 #app:not(.hidden)>nav{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;width:100%!important;max-width:none!important;flex:0 0 auto;padding-bottom:max(8px,env(safe-area-inset-bottom))}
 </style></head><body>
-<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.25 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
+<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.26 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
 <section id="app" class="hidden"><header><div><b>NEREUS OPERATIONS</b><small id="userLine"></small></div><button id="refresh" class="secondary" title="Обновить данные">↻</button><button id="logout" class="link">Выйти</button></header><main><div id="banner" class="banner hidden"></div><div class="meta"><span id="reportMeta"></span><span id="sourceMeta"></span></div><div id="brief"></div><div id="schedules" class="hidden"></div><div id="weather" class="hidden"></div><div id="portInfo" class="hidden"></div><div id="export" class="hidden"></div><div id="admin" class="hidden"></div></main><nav id="nav"><button data-view="brief" class="active">Mobile Brief</button><button id="schedulesNav" data-view="schedules" class="hidden">Schedules</button><button data-view="weather">Weather</button><button data-view="portInfo">Port Info</button><button id="exportNav" data-view="export" class="hidden">Export</button><button id="adminNav" data-view="admin" class="hidden">Admin</button></nav></section>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/app.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v034.js"></script>
@@ -138,7 +138,7 @@ switchView=function(v){
     state.view='export';
     ['brief','schedules','weather','portInfo','export','admin'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='export'));
     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='export'));
-    document.querySelector('#reportMeta').textContent='Export Center · v1.1.25';
+    document.querySelector('#reportMeta').textContent='Export Center · v1.1.26';
     renderExport();
     return;
   }
@@ -359,6 +359,118 @@ syncExportNav();
       state.departedPending=[];
     }
   };
+})();
+</script>
+<script>
+(function(){
+  const LEGAL_RU="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@35dd708cdb02d4357ea2df90571679f221f15500/nereus-operations-v02/web/legal/decree-686-ru.html";
+  const LEGAL_EN="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@35dd708cdb02d4357ea2df90571679f221f15500/nereus-operations-v02/web/legal/decree-686-en.html";
+
+  function clientLimited(){return state.user&&state.user.role!=='admin'}
+
+  async function downloadLegal(url,name){
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const blob=await r.blob();
+      const u=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(u),1500);
+    }catch(e){
+      window.open(url,'_blank','noopener');
+    }
+  }
+  window.nereusDownloadLegal=downloadLegal;
+
+  function legalCard(){
+    return '<div class="legal-access-card" style="margin:0 0 14px;border:1px solid #24465d;border-radius:14px;background:#0d2230;padding:16px 18px">'+
+      '<div style="font-weight:800;font-size:15px;color:#e7f4ff;margin-bottom:7px">OPERATIONAL REPORTS TEMPORARILY RESTRICTED</div>'+
+      '<div style="font-size:12px;line-height:1.5;color:#a9bfd0;margin-bottom:12px">'+
+        'Operational reporting is temporarily unavailable while we update the publication format in line with new confidentiality requirements. Access will be restored after review.'+
+      '</div>'+
+      '<div style="font-size:11px;color:#6fa7c7;margin-bottom:9px">Decree of the President of the Russian Federation No. 686 dated 28 September 2026</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<a class="secondary" style="text-decoration:none;padding:8px 11px" href="'+LEGAL_RU+'" target="_blank" rel="noopener">VIEW · RU</a>'+
+        '<button class="secondary" style="padding:8px 11px" data-legal-download="ru">DOWNLOAD · RU</button>'+
+        '<a class="secondary" style="text-decoration:none;padding:8px 11px" href="'+LEGAL_EN+'" target="_blank" rel="noopener">VIEW · EN</a>'+
+        '<button class="secondary" style="padding:8px 11px" data-legal-download="en">DOWNLOAD · EN</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  function bindLegal(root){
+    root?.querySelector('[data-legal-download="ru"]')?.addEventListener('click',()=>downloadLegal(LEGAL_RU,'Decree_686_RU.html'));
+    root?.querySelector('[data-legal-download="en"]')?.addEventListener('click',()=>downloadLegal(LEGAL_EN,'Decree_686_EN.html'));
+  }
+
+  const baseRenderWeatherLimited=renderWeather;
+  renderWeather=function(){
+    baseRenderWeatherLimited();
+    if(!clientLimited())return;
+    const root=$('#weather');
+    if(root&&!root.querySelector('.legal-access-card')){
+      root.insertAdjacentHTML('afterbegin',legalCard());
+      bindLegal(root);
+    }
+  };
+
+  function applyClientAccess(){
+    if(!clientLimited())return;
+
+    const hideSel=['nav button[data-view="brief"]','#schedulesNav','#exportNav','#adminNav'];
+    hideSel.forEach(sel=>document.querySelector(sel)?.classList.add('hidden'));
+
+    // Client WEB access: Weather + Port Info only.
+    const nav=$('#nav');
+    if(nav){
+      nav.classList.remove('nav-four','nav-export-four','nav-five');
+      nav.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
+    }
+
+    ['brief','schedules','export','admin'].forEach(id=>document.querySelector('#'+id)?.classList.add('hidden'));
+
+    if(!['weather','portInfo'].includes(state.view)){
+      state.view='weather';
+    }
+  }
+
+  const baseAppViewClient=appView;
+  appView=function(){
+    baseAppViewClient();
+    applyClientAccess();
+  };
+
+  const baseSwitchClient=switchView;
+  switchView=function(v){
+    if(clientLimited()&&!['weather','portInfo'].includes(v))v='weather';
+    baseSwitchClient(v);
+    applyClientAccess();
+    if(v==='weather')renderWeather();
+  };
+
+  const baseRenderClient=render;
+  render=function(){
+    baseRenderClient();
+    applyClientAccess();
+    if(clientLimited()){
+      if(state.view==='portInfo'){
+        document.querySelector('#portInfo')?.classList.remove('hidden');
+      }else{
+        state.view='weather';
+        document.querySelector('#weather')?.classList.remove('hidden');
+        renderWeather();
+      }
+    }
+  };
+
+  if(state.user){
+    applyClientAccess();
+    if(clientLimited()){
+      state.view='weather';
+      setTimeout(()=>switchView('weather'),0);
+    }
+  }
 })();
 </script>
 </body></html>
