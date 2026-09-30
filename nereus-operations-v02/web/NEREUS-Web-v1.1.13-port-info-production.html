@@ -14,7 +14,7 @@
 #app:not(.hidden)>main{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;padding-bottom:12px}
 #app:not(.hidden)>nav{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;width:100%!important;max-width:none!important;flex:0 0 auto;padding-bottom:max(8px,env(safe-area-inset-bottom))}
 </style></head><body>
-<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.24 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
+<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.25 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
 <section id="app" class="hidden"><header><div><b>NEREUS OPERATIONS</b><small id="userLine"></small></div><button id="refresh" class="secondary" title="Обновить данные">↻</button><button id="logout" class="link">Выйти</button></header><main><div id="banner" class="banner hidden"></div><div class="meta"><span id="reportMeta"></span><span id="sourceMeta"></span></div><div id="brief"></div><div id="schedules" class="hidden"></div><div id="weather" class="hidden"></div><div id="portInfo" class="hidden"></div><div id="export" class="hidden"></div><div id="admin" class="hidden"></div></main><nav id="nav"><button data-view="brief" class="active">Mobile Brief</button><button id="schedulesNav" data-view="schedules" class="hidden">Schedules</button><button data-view="weather">Weather</button><button data-view="portInfo">Port Info</button><button id="exportNav" data-view="export" class="hidden">Export</button><button id="adminNav" data-view="admin" class="hidden">Admin</button></nav></section>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/app.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v034.js"></script>
@@ -138,7 +138,7 @@ switchView=function(v){
     state.view='export';
     ['brief','schedules','weather','portInfo','export','admin'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='export'));
     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='export'));
-    document.querySelector('#reportMeta').textContent='Export Center · v1.1.24';
+    document.querySelector('#reportMeta').textContent='Export Center · v1.1.25';
     renderExport();
     return;
   }
@@ -263,6 +263,102 @@ syncExportNav();
   });
 
   if(state.token)setTimeout(loadDepartedPendingWeb,100);
+})();
+</script>
+<script>
+(function(){
+  const fullAdminRenderBrief=renderBrief;
+
+  function restrictedBriefHtml(){
+    return '<div class="section">MOBILE BRIEF</div>'+
+      '<div style="margin-top:10px;border:1px solid #24465d;border-radius:14px;background:#0d2230;padding:18px 20px;max-width:900px">'+
+        '<div style="font-weight:800;font-size:16px;color:#e7f4ff;margin-bottom:8px">MOBILE BRIEF TEMPORARILY UNAVAILABLE</div>'+
+        '<div style="font-size:13px;line-height:1.55;color:#a9bfd0">'+
+          'This section is temporarily unavailable while we update the reporting format to comply with new confidentiality requirements for export-related information. We will restore access once the review is complete.'+
+        '</div>'+
+      '</div>';
+  }
+
+  renderBrief=function(){
+    if(state.user?.role!=='admin'){
+      const root=$('#brief');
+      if(root)root.innerHTML=restrictedBriefHtml();
+      return;
+    }
+    return fullAdminRenderBrief();
+  };
+
+  async function webLoad(){
+    try{
+      const action=state.user?.role==='admin'?'reports':'webReports';
+      const d=await call(action);
+
+      state.reports={
+        source:d.source,
+        mobile:parseMobile(d.mobile_rows),
+        weather:parseWeather(d.weather_rows)
+      };
+
+      if(d.schedules)state.reports.schedules=d.schedules;
+      if(typeof d.schedules_access!=='undefined')state.reports.schedules_access=d.schedules_access;
+      if(d.exports)state.reports.exports=d.exports;
+
+      // Never preserve previously cached operational Mobile Brief for WEB clients.
+      if(state.user?.role!=='admin'){
+        localStorage.removeItem('reports');
+        localStorage.setItem('reports',JSON.stringify({at:Date.now(),r:state.reports}));
+        localStorage.setItem('valid',Date.now());
+      }else{
+        cache(state.reports);
+      }
+
+      render();
+      banner('LIVE · Google Sheets обновлены автоматически','live');
+
+      if(state.user?.role==='admin'&&typeof window.nereusLoadDepartedPending==='function'){
+        setTimeout(window.nereusLoadDepartedPending,0);
+      }
+
+    }catch(e){
+      if(AUTH_ERRORS.has(e.message)){
+        clearSession();
+        loginView(msg(e));
+        return;
+      }
+
+      // For clients do not fall back to an old operational cache.
+      if(state.user?.role!=='admin'){
+        state.reports=state.reports||{source:'restricted',mobile:{date:'',ports:[]},weather:{date:'',locs:[]}};
+        render();
+        renderBrief();
+        banner('Mobile Brief временно недоступен.','');
+        return;
+      }
+
+      let c;
+      try{c=JSON.parse(localStorage.getItem('reports')||'null')}catch(_){c=null}
+      if(c&&Date.now()-Number(localStorage.getItem('valid')||0)<86400000){
+        state.reports=c.r;
+        render();
+        banner('Нет связи. Показаны последние сохранённые данные.');
+      }else{
+        banner(msg(e));
+      }
+    }
+  }
+
+  load=webLoad;
+  const refreshBtn=$('#refresh');
+  if(refreshBtn)refreshBtn.onclick=webLoad;
+
+  const baseAppViewRestricted=appView;
+  appView=function(){
+    baseAppViewRestricted();
+    if(state.user?.role!=='admin'){
+      localStorage.removeItem('reports');
+      state.departedPending=[];
+    }
+  };
 })();
 </script>
 </body></html>
