@@ -1,0 +1,476 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#07131f"><title>NEREUS Operations</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v034.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v035.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/status-v036.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/port-status-v037.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/schedules-v039.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/layout-v041.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@cedc26ac6fbe3c1d32d0b49059fb3e43c07477c7/nereus-operations-v02/app/src/main/assets/port-info-v043.css">
+<style>.export-box{background:#0d2233;border:1px solid #234156;border-radius:14px;padding:12px;margin:10px 0}.export-title{display:flex;justify-content:space-between;gap:10px;margin-bottom:10px}.export-title small{color:#89a6b8}.export-grid{display:grid;grid-template-columns:minmax(140px,1fr) 80px 80px;gap:1px;background:#234156;border:1px solid #234156;border-radius:9px;overflow:hidden}.export-grid>div{background:#091b29;padding:9px;font-size:11px}.export-grid .h{background:#15344c;font-weight:700;color:#bfe9ff}.export-link{display:inline-block;padding:5px 8px;border-radius:7px;background:#17405a;color:white;text-decoration:none;font-weight:700}.export-note{padding:12px;border:1px solid #765f26;border-radius:10px;background:#2a2412;color:#f7dda0}
+/* WEB-only layout fix: keep bottom navigation outside the scrollable content */
+#app:not(.hidden){display:flex;flex-direction:column;height:100vh;height:100dvh;min-height:0;overflow:hidden}
+#app:not(.hidden)>header{flex:0 0 auto}
+#app:not(.hidden)>main{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;padding-bottom:12px}
+#app:not(.hidden)>nav{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;width:100%!important;max-width:none!important;flex:0 0 auto;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+</style></head><body>
+<section id="login" class="login"><div class="card loginCard"><h1>NEREUS OPERATIONS</h1><div class="badge">WEB v1.1.28 · SUPABASE</div><p>Live Operations Center</p><form id="loginForm"><input id="username" placeholder="Логин" autocomplete="username" required><input id="password" type="password" placeholder="Пароль" autocomplete="current-password" required><button>ВОЙТИ</button></form><div id="loginError" class="err"></div></div></section>
+<section id="app" class="hidden"><header><div><b>NEREUS OPERATIONS</b><small id="userLine"></small></div><button id="refresh" class="secondary" title="Обновить данные">↻</button><button id="logout" class="link">Выйти</button></header><main><div id="banner" class="banner hidden"></div><div class="meta"><span id="reportMeta"></span><span id="sourceMeta"></span></div><div id="brief"></div><div id="schedules" class="hidden"></div><div id="weather" class="hidden"></div><div id="portInfo" class="hidden"></div><div id="export" class="hidden"></div><div id="admin" class="hidden"></div></main><nav id="nav"><button data-view="brief" class="active">Mobile Brief</button><button id="schedulesNav" data-view="schedules" class="hidden">Schedules</button><button data-view="weather">Weather</button><button data-view="portInfo">Port Info</button><button id="exportNav" data-view="export" class="hidden">Export</button><button id="adminNav" data-view="admin" class="hidden">Admin</button></nav></section>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/app.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/mobile-v034.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/status-v036.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/port-status-v037.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/refresh-v038.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/schedules-v039.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@e0e732bb445869fb2cf51d25a58735a3282f637a/nereus-operations-v02/web/schedules-web-v120.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@nereus-operations-apk-build/nereus-operations-v02/app/src/main/assets/admin-access-v040.js"></script>
+<script>
+(function(){
+const EXPORT_API='https://bzfzghszxqartljpjsmc.supabase.co/functions/v1/nereus-export';
+function exportAllowed(){return state.user?.role==='admin'||state.user?.schedules_access===true}
+function syncExportNav(){const n=document.querySelector('#exportNav');if(n)n.classList.toggle('hidden',!exportAllowed())}
+const baseAppView=appView;appView=function(){baseAppView();syncExportNav()};
+
+async function exportManifest(){
+  let r;
+  try{
+    r=await fetch(EXPORT_API,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'manifest',device_id:device,access_token:state.token}),
+      cache:'no-store'
+    });
+  }catch(_){throw Error('CONNECTION_ERROR')}
+  let d;try{d=await r.json()}catch(_){throw Error('SERVER_RESPONSE_ERROR')}
+  if(!r.ok||!d.ok)throw Error(d.error||'EXPORT_ERROR');
+  return d.exports;
+}
+
+function dl(id,label){
+  return id?'<a class="export-link nereus-download" href="#" data-export-id="'+esc(id)+'">'+esc(label)+'</a>':'—';
+}
+function rows(o,prefix){
+  return Object.entries(o||{}).map(([k,v]) =>
+    '<div>'+esc(v?.name||k)+'</div>'+
+    '<div>'+dl(prefix+':'+k+':pdf','PDF')+'</div>'+
+    '<div>'+dl(prefix+':'+k+':xlsx','XLSX')+'</div>'
+  ).join('');
+}
+function box(title,sub,body,extra=''){
+  return '<div class="export-box"><div class="export-title"><b>'+title+'</b><small>'+sub+'</small></div>'+
+    '<div class="export-grid"><div class="h">REPORT</div><div class="h">PDF</div><div class="h">XLSX</div>'+body+'</div>'+extra+'</div>';
+}
+
+function ensureDownloadFrame(){
+  let fr=document.getElementById('nereusExportFrame');
+  if(!fr){
+    fr=document.createElement('iframe');
+    fr.id='nereusExportFrame';
+    fr.name='nereusExportFrame';
+    fr.style.display='none';
+    document.body.appendChild(fr);
+  }
+  return fr;
+}
+function hiddenInput(name,value){
+  const i=document.createElement('input');
+  i.type='hidden';i.name=name;i.value=String(value??'');
+  return i;
+}
+function startDownload(exportId,button){
+  ensureDownloadFrame();
+  const form=document.createElement('form');
+  form.method='POST';
+  form.action=EXPORT_API;
+  form.target='nereusExportFrame';
+  form.style.display='none';
+  form.appendChild(hiddenInput('action','download'));
+  form.appendChild(hiddenInput('export_id',exportId));
+  form.appendChild(hiddenInput('device_id',device));
+  form.appendChild(hiddenInput('access_token',state.token));
+  document.body.appendChild(form);
+  if(button){
+    const old=button.textContent;
+    button.textContent='...';
+    button.style.pointerEvents='none';
+    setTimeout(()=>{button.textContent=old;button.style.pointerEvents='';},1800);
+  }
+  form.submit();
+  setTimeout(()=>form.remove(),3000);
+}
+function bindDownloads(root){
+  root.querySelectorAll('.nereus-download').forEach(a=>{
+    a.addEventListener('click',e=>{
+      e.preventDefault();
+      const id=a.getAttribute('data-export-id')||'';
+      if(id)startDownload(id,a);
+    });
+  });
+}
+
+async function renderExport(){
+  const root=document.querySelector('#export');
+  if(!exportAllowed()){root.innerHTML='';return}
+  root.innerHTML='<div class="empty">Загрузка Export Center…</div>';
+  try{
+    const m=await exportManifest(),v=m.views||{};
+    root.innerHTML=
+      '<div class="section">EXPORT CENTER</div>'+
+      box('SCHEDULES','исходные табличные сводки',rows(m.schedules,'schedule'))+
+      box('PORT VIEWS · COMMERCIAL','все колонки',rows(v.commercial,'view:commercial'),
+        '<div style="margin-top:9px">'+dl('view:commercial:all:xlsx','ALL 4 PORTS · XLSX')+'</div>')+
+      box('PORT VIEWS · NO COMMERCIAL','без коммерческих полей',rows(v.no_commercial,'view:no_commercial'),
+        '<div style="margin-top:9px">'+dl('view:no_commercial:all:xlsx','ALL 4 PORTS · XLSX')+'</div>')+
+      box('WEATHER REPORT','актуальная погода',
+        '<div>'+esc(m.weather?.name||'Weather Report')+'</div>'+
+        '<div>'+dl('weather:pdf','PDF')+'</div>'+
+        '<div>'+dl('weather:xlsx','XLSX')+'</div>');
+    bindDownloads(root);
+  }catch(err){
+    root.innerHTML='<div class="section">EXPORT CENTER</div><div class="export-note">Экспорт сейчас недоступен: '+esc(err.message||'EXPORT_ERROR')+'</div>';
+  }
+}
+
+const baseSwitch=switchView;
+switchView=function(v){
+  if(v==='export'){
+    if(!exportAllowed())return baseSwitch('brief');
+    state.view='export';
+    ['brief','schedules','weather','portInfo','export','admin'].forEach(x=>document.querySelector('#'+x)?.classList.toggle('hidden',x!=='export'));
+    document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='export'));
+    document.querySelector('#reportMeta').textContent='Export Center · v1.1.28';
+    renderExport();
+    return;
+  }
+  document.querySelector('#export')?.classList.add('hidden');
+  baseSwitch(v);
+  syncExportNav();
+};
+const baseRender=render;
+render=function(){baseRender();syncExportNav();if(state.view==='export')renderExport()};
+syncExportNav();
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@ba00e07e12967bd2e888ed81ea70e209980f0fb2/nereus-operations-v02/app/src/main/assets/port-info-v043.js"></script><script>
+(function(){
+  state.departedPending=Array.isArray(state.departedPending)?state.departedPending:[];
+
+  function pendingKey(v){
+    return [
+      String(v?.imo||v?.vessel||'').trim().toUpperCase(),
+      String(v?.port||'').trim().toUpperCase(),
+      String(v?.terminal||'').trim().toUpperCase(),
+      String(v?.eta||'').trim(),
+      String(v?.load_position||'').trim().toUpperCase()
+    ].join('|');
+  }
+
+  function pendingForPort(port){
+    const p=String(port||'').trim().toUpperCase();
+    const seen=new Set();
+    return (state.departedPending||[]).filter(v=>{
+      if(String(v?.port||'').trim().toUpperCase()!==p)return false;
+      const k=pendingKey(v);
+      if(seen.has(k))return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  async function loadDepartedPendingWeb(){
+    if(!state.token)return;
+    try{
+      const d=await call('departedPending');
+      state.departedPending=Array.isArray(d?.rows)?d.rows:[];
+      if(state.reports&&state.view==='brief')renderBrief();
+    }catch(err){
+      console.warn('DEPARTED_PENDING unavailable',err);
+      state.departedPending=[];
+      if(state.reports&&state.view==='brief')renderBrief();
+    }
+  }
+  window.nereusLoadDepartedPending=loadDepartedPendingWeb;
+
+  renderBrief=function(){
+    const d=state.reports?.mobile||{ports:[]};
+    const ps=d.ports||[];
+    if(!state.port||!ps.some(p=>p.name===state.port))state.port=ps[0]?.name;
+
+    const p=ps.find(q=>q.name===state.port);
+    let h=chips(ps.map(q=>q.name),state.port);
+
+    if(p){
+      const groups=(p.groups||[]).slice();
+      const pending=pendingForPort(p.name);
+
+      if(pending.length){
+        const g={
+          status:'DEPARTED · ETS NOT YET',
+          vessels:pending.map(v=>({
+            vessel:v.vessel||'',
+            terminal:v.terminal||'',
+            cargo:v.cargo||'',
+            qty:v.qty||'',
+            loadPosition:v.load_position||'',
+            eta:v.eta||'',
+            etb:v.etb||'',
+            ets:'NOT YET'
+          }))
+        };
+        const idx=groups.findIndex(x=>x.status==='DEPARTED - LAST 5 DAYS');
+        if(idx>=0)groups.splice(idx,0,g);else groups.push(g);
+      }
+
+      for(const g of groups){
+        h+='<div class="section">'+esc(g.status)+' · '+g.vessels.length+'</div>';
+        h+=g.vessels.length
+          ? '<div class="grid">'+g.vessels.map(v=>
+              '<div class="vessel">'+
+                '<b>'+esc(v.vessel)+'</b>'+
+                '<div class="terminal">'+esc(v.terminal||'—')+'</div>'+
+                '<div class="cargo"><span>'+esc(v.cargo||'—')+'</span><span>'+esc(v.qty||'—')+' MT</span></div>'+
+                '<div class="loadpos"><span>LOAD POSITION</span><b>'+esc(v.loadPosition||'—')+'</b></div>'+
+                '<div class="times">'+
+                  '<div class="time"><span>ETA / ARR</span><b>'+esc(v.eta||'—')+'</b></div>'+
+                  '<div class="time"><span>ETB</span><b>'+esc(v.etb||'—')+'</b></div>'+
+                  '<div class="time"><span>ETS</span><b>'+esc(v.ets||'—')+'</b></div>'+
+                '</div>'+
+              '</div>'
+            ).join('')+'</div>'
+          : '<div class="empty">Нет судов</div>';
+      }
+    }
+
+    $('#brief').innerHTML=h;
+    $('#brief').querySelectorAll('[data-chip]').forEach(b=>{
+      b.onclick=()=>{state.port=b.dataset.chip;renderBrief()}
+    });
+  };
+
+  const baseAppViewPending=appView;
+  appView=function(){
+    baseAppViewPending();
+    setTimeout(loadDepartedPendingWeb,0);
+  };
+
+  const refreshBtn=document.querySelector('#refresh');
+  if(refreshBtn)refreshBtn.addEventListener('click',()=>setTimeout(loadDepartedPendingWeb,50));
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'&&(state.token||state.refresh)){
+      setTimeout(loadDepartedPendingWeb,50);
+    }
+  });
+
+  if(state.token)setTimeout(loadDepartedPendingWeb,100);
+})();
+</script>
+<script>
+(function(){
+  const fullAdminRenderBrief=renderBrief;
+
+  function restrictedBriefHtml(){
+    return '<div class="section">MOBILE BRIEF</div>'+
+      '<div style="margin-top:10px;border:1px solid #24465d;border-radius:14px;background:#0d2230;padding:18px 20px;max-width:900px">'+
+        '<div style="font-weight:800;font-size:16px;color:#e7f4ff;margin-bottom:8px">MOBILE BRIEF TEMPORARILY UNAVAILABLE</div>'+
+        '<div style="font-size:13px;line-height:1.55;color:#a9bfd0">'+
+          'This section is temporarily unavailable while we update the reporting format to comply with new confidentiality requirements for export-related information. We will restore access once the review is complete.'+
+        '</div>'+
+      '</div>';
+  }
+
+  renderBrief=function(){
+    if(state.user?.role!=='admin'){
+      const root=$('#brief');
+      if(root)root.innerHTML=restrictedBriefHtml();
+      return;
+    }
+    return fullAdminRenderBrief();
+  };
+
+  async function webLoad(){
+    try{
+      const action=state.user?.role==='admin'?'reports':'webReports';
+      const d=await call(action);
+
+      state.reports={
+        source:d.source,
+        mobile:parseMobile(d.mobile_rows),
+        weather:parseWeather(d.weather_rows)
+      };
+
+      if(d.schedules)state.reports.schedules=d.schedules;
+      if(typeof d.schedules_access!=='undefined'){state.reports.schedules_access=d.schedules_access;state.reports.schedulesAccess=!!d.schedules_access;}
+      if(d.exports)state.reports.exports=d.exports;
+
+      // Never preserve previously cached operational Mobile Brief for WEB clients.
+      if(state.user?.role!=='admin'){
+        localStorage.removeItem('reports');
+        localStorage.setItem('reports',JSON.stringify({at:Date.now(),r:state.reports}));
+        localStorage.setItem('valid',Date.now());
+      }else{
+        cache(state.reports);
+      }
+
+      render();
+      banner('LIVE · Google Sheets обновлены автоматически','live');
+
+      if(state.user?.role==='admin'&&typeof window.nereusLoadDepartedPending==='function'){
+        setTimeout(window.nereusLoadDepartedPending,0);
+      }
+
+    }catch(e){
+      if(AUTH_ERRORS.has(e.message)){
+        clearSession();
+        loginView(msg(e));
+        return;
+      }
+
+      // For clients do not fall back to an old operational cache.
+      if(state.user?.role!=='admin'){
+        state.reports=state.reports||{source:'restricted',mobile:{date:'',ports:[]},weather:{date:'',locs:[]}};
+        render();
+        renderBrief();
+        banner('Mobile Brief временно недоступен.','');
+        return;
+      }
+
+      let c;
+      try{c=JSON.parse(localStorage.getItem('reports')||'null')}catch(_){c=null}
+      if(c&&Date.now()-Number(localStorage.getItem('valid')||0)<86400000){
+        state.reports=c.r;
+        render();
+        banner('Нет связи. Показаны последние сохранённые данные.');
+      }else{
+        banner(msg(e));
+      }
+    }
+  }
+
+  load=webLoad;
+  const refreshBtn=$('#refresh');
+  if(refreshBtn)refreshBtn.onclick=webLoad;
+
+  const baseAppViewRestricted=appView;
+  appView=function(){
+    baseAppViewRestricted();
+    if(state.user?.role!=='admin'){
+      localStorage.removeItem('reports');
+      state.departedPending=[];
+    }
+  };
+})();
+</script>
+<script>
+(function(){
+  const LEGAL_RU="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@35dd708cdb02d4357ea2df90571679f221f15500/nereus-operations-v02/web/legal/decree-686-ru.html";
+  const LEGAL_EN="https://cdn.jsdelivr.net/gh/Peter1993-NEREUS/VOLGA-4007-Drift-Model@35dd708cdb02d4357ea2df90571679f221f15500/nereus-operations-v02/web/legal/decree-686-en.html";
+
+  function clientLimited(){return state.user&&state.user.role!=='admin'}
+
+  async function downloadLegal(url,name){
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const blob=await r.blob();
+      const u=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(u),1500);
+    }catch(e){
+      window.open(url,'_blank','noopener');
+    }
+  }
+  window.nereusDownloadLegal=downloadLegal;
+
+  function legalCard(){
+    return '<div class="legal-access-card" style="margin:0 0 14px;border:1px solid #24465d;border-radius:14px;background:#0d2230;padding:16px 18px">'+
+      '<div style="font-weight:800;font-size:15px;color:#e7f4ff;margin-bottom:7px">OPERATIONAL REPORTS TEMPORARILY RESTRICTED</div>'+
+      '<div style="font-size:12px;line-height:1.5;color:#a9bfd0;margin-bottom:12px">'+
+        'Operational reporting is temporarily unavailable while we update the publication format in line with new confidentiality requirements. Access will be restored after review.'+
+      '</div>'+
+      '<div style="font-size:11px;color:#6fa7c7;margin-bottom:9px">Decree of the President of the Russian Federation No. 686 dated 28 September 2026</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<a class="secondary" style="text-decoration:none;padding:8px 11px" href="'+LEGAL_RU+'" target="_blank" rel="noopener">VIEW · RU</a>'+
+        '<button class="secondary" style="padding:8px 11px" data-legal-download="ru">DOWNLOAD · RU</button>'+
+        '<a class="secondary" style="text-decoration:none;padding:8px 11px" href="'+LEGAL_EN+'" target="_blank" rel="noopener">VIEW · EN</a>'+
+        '<button class="secondary" style="padding:8px 11px" data-legal-download="en">DOWNLOAD · EN</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  function bindLegal(root){
+    root?.querySelector('[data-legal-download="ru"]')?.addEventListener('click',()=>downloadLegal(LEGAL_RU,'Decree_686_RU.html'));
+    root?.querySelector('[data-legal-download="en"]')?.addEventListener('click',()=>downloadLegal(LEGAL_EN,'Decree_686_EN.html'));
+  }
+
+  const baseRenderWeatherLimited=renderWeather;
+  renderWeather=function(){
+    baseRenderWeatherLimited();
+    if(!clientLimited())return;
+    const root=$('#weather');
+    if(root&&!root.querySelector('.legal-access-card')){
+      root.insertAdjacentHTML('afterbegin',legalCard());
+      bindLegal(root);
+    }
+  };
+
+  function applyClientAccess(){
+    if(!clientLimited())return;
+
+    const hideSel=['nav button[data-view="brief"]','#schedulesNav','#exportNav','#adminNav'];
+    hideSel.forEach(sel=>document.querySelector(sel)?.classList.add('hidden'));
+
+    // Client WEB access: Weather + Port Info only.
+    const nav=$('#nav');
+    if(nav){
+      nav.classList.remove('nav-four','nav-export-four','nav-five');
+      nav.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
+    }
+
+    ['brief','schedules','export','admin'].forEach(id=>document.querySelector('#'+id)?.classList.add('hidden'));
+
+    if(!['weather','portInfo'].includes(state.view)){
+      state.view='weather';
+    }
+  }
+
+  const baseAppViewClient=appView;
+  appView=function(){
+    baseAppViewClient();
+    applyClientAccess();
+  };
+
+  const baseSwitchClient=switchView;
+  switchView=function(v){
+    if(clientLimited()&&!['weather','portInfo'].includes(v))v='weather';
+    baseSwitchClient(v);
+    applyClientAccess();
+    if(v==='weather')renderWeather();
+  };
+
+  const baseRenderClient=render;
+  render=function(){
+    baseRenderClient();
+    applyClientAccess();
+    if(clientLimited()){
+      if(state.view==='portInfo'){
+        document.querySelector('#portInfo')?.classList.remove('hidden');
+      }else{
+        state.view='weather';
+        document.querySelector('#weather')?.classList.remove('hidden');
+        renderWeather();
+      }
+    }
+  };
+
+  if(state.user){
+    applyClientAccess();
+    if(clientLimited()){
+      state.view='weather';
+      setTimeout(()=>switchView('weather'),0);
+    }
+  }
+})();
+</script>
+</body></html>
